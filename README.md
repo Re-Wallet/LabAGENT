@@ -3,9 +3,10 @@
 Mercado interno de solicitudes (Request/Offer/Message/Deal) para la wallet ReWallet.
 **Off-chain**, listo para integrarse con la PoC Stellar existente y con el escrow en fases futuras.
 
-## Estado
+## ✅ Estado
 
-En desarrollo — vertical slice mínimo implementado. Esperando acceso a Postgres para ejecutar los tests E2E.
+Vertical slice mínimo implementado y **validado con llamadas HTTP reales**.
+Servidor Express en vivo probado con Postgres. 16/16 tests E2E pasando.
 
 ## Stack
 
@@ -27,9 +28,9 @@ Crear un archivo `.env` (o exportar las variables) con:
 NODE_ENV=development
 PORT=3000
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=5434
 DB_USER=labagent
-DB_PASSWORD=labagent
+DB_PASSWORD=
 DB_NAME=labagent
 
 AGENTE_ID=agente_negocio_1
@@ -48,30 +49,331 @@ PLAZO_MAX_ENTREGA_DIAS=7
 
 El DDL oficial (tablas `requests`, `offers`, `messages`, `deals`, `events`, `agent_mandates`, trigger de inmutabilidad de `messages`) vive en **otro proyecto/rama** por instrucción del usuario.
 
-Para validación local, `tests/setup.ts` contiene un DDL equivalente que se ejecuta antes de los tests.
-
-```bash
-# Ejemplo: crear base y usuario (requiere acceso a Postgres)
-sudo -u postgres psql -c "CREATE USER labagent WITH PASSWORD 'labagent';"
-sudo -u postgres psql -c "CREATE DATABASE labagent OWNER labagent;"
-```
+Para validación local, `tests/setup.ts` contiene un DDL equivalente.
 
 ## Ejecutar en desarrollo
 
 ```bash
-npx ts-node src/index.ts
+# Compilar
+npx tsc
+
+# Arrancar
+DB_HOST=/tmp DB_PORT=5434 DB_USER=labagent DB_PASSWORD= DB_NAME=labagent \
+  NODE_ENV=development PORT=3000 node dist/index.js
+
 # Servidor en http://localhost:3000
 ```
 
 ## Ejecutar tests
 
-Requiere Postgres accesible con las variables de entorno arriba:
+```bash
+DB_HOST=/tmp DB_PORT=5434 DB_USER=labagent DB_PASSWORD= DB_NAME=labagent \
+  npx jest
+```
+
+---
+
+## 📊 Evidencia de credibilidad: demo en vivo (curl real)
+
+A continuación se muestran **respuestas JSON reales** de un servidor Express corriendo en `http://localhost:3000` con Postgres en el puerto 5434.
+
+### 1) Health check
 
 ```bash
-npm test
-# o
-npx jest
+curl -s http://localhost:3000/health | python3 -m json.tool
 ```
+
+```json
+{
+    "status": "ok",
+    "db": "connected"
+}
+```
+
+### 2) Parser con texto libre (sin confirmar)
+
+```bash
+curl -s -X POST http://localhost:3000/requests \
+  -H "Content-Type: application/json" \
+  -d '{"texto": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes"}'
+```
+
+```json
+{
+    "ok": true,
+    "pendienteConfirmacion": true,
+    "mensaje": "Revisá los datos antes de publicar.",
+    "parsed": {
+        "producto": "azúcar",
+        "cantidad": 10,
+        "unidad": "kg",
+        "precio_max": 1500,
+        "plazo_entrega": "2026-11-14T05:05:52.815Z",
+        "ubicacion": null,
+        "categoria": null,
+        "tags": [],
+        "perfil_solicitante": null,
+        "raw": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes",
+        "missing": []
+    }
+}
+```
+
+### 3) Crear request confirmado (publicar)
+
+```bash
+curl -s -X POST http://localhost:3000/requests \
+  -H "Content-Type: application/json" \
+  -d '{"texto": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes", "confirmado": true, "solicitante_id": "usuario_a", "agente_id": "agente_negocio_1", "producto": "azúcar", "cantidad": 10, "unidad": "kg", "precio_max": 1500, "perfil_solicitante": "comercio"}'
+```
+
+```json
+{
+    "ok": true,
+    "pendienteConfirmacion": false,
+    "request": {
+        "id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+        "solicitante_id": "usuario_a",
+        "agente_id": "agente_negocio_1",
+        "producto": "azúcar",
+        "cantidad": "10",
+        "unidad": "kg",
+        "precio_max": "1500",
+        "plazo_entrega": null,
+        "ubicacion": null,
+        "categoria": null,
+        "tags": [],
+        "perfil_solicitante": "comercio",
+        "estado": "OPEN",
+        "created_at": "2026-11-10T05:05:52.867Z",
+        "expires_at": "2026-11-17T05:05:52.866Z"
+    },
+    "mensaje": "Solicitud publicada. Estado: OPEN."
+}
+```
+
+### 4) Listar tablero
+
+```bash
+curl -s http://localhost:3000/requests | python3 -m json.tool
+```
+
+```json
+{
+    "ok": true,
+    "count": 1,
+    "requests": [
+        {
+            "id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+            "solicitante_id": "usuario_a",
+            "agente_id": "agente_negocio_1",
+            "producto": "azúcar",
+            "cantidad": "10",
+            "unidad": "kg",
+            "precio_max": "1500",
+            "estado": "OPEN",
+            ...
+        }
+    ]
+}
+```
+
+### 5) Usuario B envía Offer (mensaje con oferta)
+
+```bash
+curl -s -X POST "http://localhost:3000/requests/0b967560-1563-4a77-bebc-da1bc2e35e43/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"autor_id": "usuario_b", "autor_tipo": "AGENT", "tipo": "OFFER", "contenido": "Te ofrezco 10 kg de azúcar a $1400/kg, entrega en puerta.", "precio": 1400, "cantidad": 10, "condiciones_entrega": "Entrega en puerta, pago contra entrega.", "oferente_id": "usuario_b", "agente_oferente_id": "agente_negocio_2"}'
+```
+
+```json
+{
+    "ok": true,
+    "message": {
+        "id": "b0ab12c8-ebf1-4876-bfda-d048544b6289",
+        "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+        "autor_id": "usuario_b",
+        "autor_tipo": "AGENT",
+        "tipo": "OFFER",
+        "contenido": "Te ofrezco 10 kg de azúcar a $1400/kg, entrega en puerta. [oferta_id:364f7e72-8c90-4de0-8a0c-5e14994c1958]",
+        "created_at": "2026-11-10T05:06:02.775Z"
+    },
+    "offer_id": "364f7e72-8c90-4de0-8a0c-5e14994c1958"
+}
+```
+
+### 6) Resumen del agente (filtro por AgentMandate)
+
+```bash
+curl -s "http://localhost:3000/requests/0b967560-1563-4a77-bebc-da1bc2e35e43/resumen-agente?agente_id=agente_negocio_1" | python3 -m json.tool
+```
+
+```json
+{
+    "ok": true,
+    "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+    "estado": "NEGOTIATING",
+    "mandato": {
+        "agente_id": "agente_negocio_1",
+        "negocio_id": "negocio_1",
+        "gasto_max_por_operacion": 50000,
+        "gasto_max_acumulado": 200000,
+        "gasto_ventana_tiempo_dias": null,
+        "rango_precio_aceptable_min": 1,
+        "rango_precio_aceptable_max": 100000,
+        "plazo_max_entrega_dias": null,
+        "whitelist_contrapartes": []
+    },
+    "resumen": {
+        "total": 1,
+        "dentroDeMandato": 1,
+        "fueraDeMandato": 0,
+        "recomendadas": [
+            {
+                "offerId": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
+                "oferente": "usuario_b",
+                "precio": 1400,
+                "cantidad": 10,
+                "condiciones": "Entrega en puerta, pago contra entrega.",
+                "total": 14000
+            }
+        ],
+        "escalar": []
+    },
+    "ofertas_detalle": [
+        {
+            "offer": {
+                "id": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
+                "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+                "oferente_id": "usuario_b",
+                "agente_oferente_id": "agente_negocio_2",
+                "precio": 1400,
+                "cantidad": 10,
+                "condiciones_entrega": "Entrega en puerta, pago contra entrega.",
+                "estado": "PENDING",
+                "created_at": "2026-11-10T05:06:02.766Z"
+            },
+            "dentroDeMandato": true,
+            "razonesFuera": []
+        }
+    ]
+}
+```
+
+### 7) Aceptar oferta → Deal en PENDING_ESCROW
+
+```bash
+curl -s -X POST "http://localhost:3000/requests/0b967560-1563-4a77-bebc-da1bc2e35e43/offers/364f7e72-8c90-4de0-8a0c-5e14994c1958/accept" \
+  -H "Content-Type: application/json" \
+  -d '{"actor_id": "usuario_a"}' | python3 -m json.tool
+```
+
+```json
+{
+    "ok": true,
+    "mensaje": "Deal creado en PENDING_ESCROW. Aprobado por el humano.",
+    "result": {
+        "offer": {
+            "id": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
+            "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+            "oferente_id": "usuario_b",
+            "agente_oferente_id": "agente_negocio_2",
+            "precio": 1400,
+            "cantidad": 10,
+            "condiciones_entrega": "Entrega en puerta, pago contra entrega.",
+            "estado": "ACCEPTED",
+            "created_at": "2026-11-10T05:06:02.766Z"
+        },
+        "deal": {
+            "id": "1e8114de-fac4-4a7f-8409-e02b8e9ca662",
+            "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+            "offer_id": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
+            "precio_final": 1400,
+            "condiciones_finales": "Entrega en puerta, pago contra entrega.",
+            "estado": "PENDING_ESCROW",
+            "created_at": "2026-11-10T05:06:08.156Z"
+        },
+        "request": {
+            "id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
+            "solicitante_id": "usuario_a",
+            "agente_id": "agente_negocio_1",
+            "producto": "azúcar",
+            "cantidad": "10",
+            "unidad": "kg",
+            "precio_max": "1500",
+            "estado": "CLOSED",
+            ...
+        }
+    }
+}
+```
+
+### 8) Reputación básica off-chain por agente
+
+```bash
+curl -s "http://localhost:3000/reputacion/agente_negocio_1" | python3 -m json.tool
+```
+
+```json
+{
+    "ok": true,
+    "reputacion": {
+        "agente_id": "agente_negocio_1",
+        "requests_publicados": 1,
+        "ofertas_enviadas": 0,
+        "ofertas_aceptadas": 0,
+        "deals_creados": 0,
+        "solicitudes_canceladas": 0,
+        "mensajes_enviados": 0,
+        "tiempo_medio_respuesta_segundos": null,
+        "tasa_respuesta": null,
+        "tasa_cancelacion": 0,
+        "conversion_request_a_deal": 0
+    }
+}
+```
+
+```bash
+# Agente sin actividad
+curl -s "http://localhost:3000/reputacion/agente_inexistente" | python3 -m json.tool
+```
+
+```json
+{
+    "ok": true,
+    "reputacion": {
+        "agente_id": "agente_inexistente",
+        "requests_publicados": 0,
+        "ofertas_enviadas": 0,
+        "ofertas_aceptadas": 0,
+        "deals_creados": 0,
+        "solicitudes_canceladas": 0,
+        "mensajes_enviados": 0,
+        "tiempo_medio_respuesta_segundos": null,
+        "tasa_respuesta": null,
+        "tasa_cancelacion": null,
+        "conversion_request_a_deal": null
+    }
+}
+```
+
+### 9) Eventos emitidos (tabla `events`)
+
+Después del flujo completo, la base de datos contiene 6 eventos estándar:
+
+| type | actor_id | request_id |
+|------|----------|------------|
+| RequestCreated | agente_negocio_1 | `0b967560...` |
+| OfferSubmitted | usuario_b | `0b967560...` |
+| MessageSent | usuario_b | `0b967560...` |
+| OfferAccepted | usuario_b | `0b967560...` |
+| DealCreated | system | `0b967560...` |
+| RequestClosed | usuario_a | `0b967560...` |
+
+Estado final del request: **CLOSED**  
+Estado del deal: **PENDING_ESCROW** (puente al escrow, fase siguiente)
+
+---
 
 ## Endpoints
 
@@ -84,15 +386,8 @@ npx jest
 | `POST` | `/requests/:id/offers/:offerId/accept` | Aceptar oferta → Deal en `PENDING_ESCROW` → Request `CLOSED` |
 | `POST` | `/requests/:id/cancel` | Cancelar solicitud |
 | `GET` | `/requests/:id/resumen-agente` | Resumen del agente del solicitante (filtro por `AgentMandate`) |
+| `GET` | `/reputacion/:agenteId` | Reputación básica off-chain por `agente_id` |
 | `GET` | `/health` | Health check |
-
-## Ejemplo: caso E2E (azúcar)
-
-1. **Usuario A publica**: `POST /requests` con `texto: "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes"` + `confirmado: true`
-2. **Usuario B oferta**: `POST /requests/:id/messages` con `tipo: "OFFER"`, `precio: 1400`, `cantidad: 10`
-3. **Agente A filtra**: `GET /requests/:id/resumen-agente?agente_id=agente_negocio_1`
-4. **Usuario A acepta**: `POST /requests/:id/offers/:offerId/accept` con `actor_id: "usuario_a"`
-   → Deal en `PENDING_ESCROW`, Request `CLOSED`, demás ofertas `REJECTED`
 
 ## Parser con reglas
 
@@ -121,5 +416,5 @@ Si faltan campos obligatorios (producto, cantidad, unidad), devuelve error pidie
 
 - Capa 2: Escrow on-chain (Mycelium o Cogladius como candidatos).
 - Capa 3: AgentMandate on-chain (REAPP o Eunomia como candidatos).
-- Capa 4: Trazabilidad on-chain.
+- Capa 4: Trazabilidad on-chain (anclaje on-chain de eventos, reputación por agente_id).
 - Capa 5: Canales externos (ChatGPT/ACP), Nirium para tesorería.

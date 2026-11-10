@@ -5,3 +5,7 @@ dist/
 npm-debug.log*
 .yarn-integrity
 coverage/
+dist/
+tests/*.js
+tests/*.d.ts
+tests/*.map

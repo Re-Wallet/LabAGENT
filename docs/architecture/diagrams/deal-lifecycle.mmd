@@ -1,0 +1,78 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TD
+    %% Usuario A (Comprador)
+    subgraph Usuario_A["👤 Usuario A (Comprador)"]
+        UsuarioA[Usuario A]
+    end
+
+    %% Usuario B (Vendedor)
+    subgraph Usuario_B["👤 Usuario B (Vendedor)"]
+        UsuarioB[Usuario B]
+    end
+
+    %% Mercado Interno
+    subgraph Mercado_Interno["🏪 Mercado Interno (LabAGENT)"]
+        CrearRequest[Crear Request]
+        EnviarOffer[Enviar Offer]
+        AceptarOffer[Aceptar Offer]
+    end
+
+    %% Deal Lifecycle
+    subgraph Deal_Lifecycle["🔄 Ciclo de Vida del Deal"]
+        PENDING_ESCROW[PENDING_ESCROW]
+        IN_ESCROW[IN_ESCROW]
+        DELIVERED[DELIVERED]
+        SETTLED[SETTLED]
+        DISPUTED[DISPUTED]
+    end
+
+    %% Contratos Soroban
+    subgraph Contrato_Escrow["⛓️ Contrato Escrow Soroban"]
+        Depositar[Depositar USDC]
+        Reclamar[Reclamar Entrega]
+        Confirmar[Confirmar Entrega]
+        Liberar[Liberar Fondos]
+        Reembolsar[Reembolsar]
+    end
+
+    %% Flujo
+    UsuarioA --> CrearRequest
+    UsuarioB --> EnviarOffer
+    CrearRequest --> AceptarOffer
+    EnviarOffer --> AceptarOffer
+    AceptarOffer --> PENDING_ESCROW
+    
+    PENDING_ESCROW --> Depositar
+    Depositar --> IN_ESCROW
+    
+    IN_ESCROW --> Reclamar
+    Reclamar --> DELIVERED
+    
+    DELIVERED --> Confirmar
+    Confirmar --> Liberar
+    Liberar --> SETTLED
+    
+    PENDING_ESCROW --> Reembolsar
+    DELIVERED --> Reembolsar
+    Reembolsar --> DISPUTED
+
+    %% Conexión con contratos
+    Depositar -.-> Contrato_Escrow
+    Reclamar -.-> Contrato_Escrow
+    Confirmar -.-> Contrato_Escrow
+    Liberar -.-> Contrato_Escrow
+    Reembolsar -.-> Contrato_Escrow
+
+    %% Estilos
+    classDef usuario fill:#5D9CEC,stroke:#2E86C1,color:#fff
+    classDef mercado fill:#48CFAD,stroke:#27AE60,color:#fff
+    classDef deal fill:#F6BB42,stroke:#F39C12,color:#000
+    classDef contrato fill:#A55EEA,stroke:#8E44AD,color:#fff
+
+    class UsuarioA,UsuarioB usuario
+    class CrearRequest,EnviarOffer,AceptarOffer mercado
+    class PENDING_ESCROW,IN_ESCROW,DELIVERED,SETTLED,DISPUTED deal
+    class Depositar,Reclamar,Confirmar,Liberar,Reembolsar contrato
+```

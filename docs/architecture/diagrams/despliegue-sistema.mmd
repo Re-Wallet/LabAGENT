@@ -1,0 +1,99 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TB
+    %% Usuarios
+    subgraph Usuarios["👥 Usuarios"]
+        U1[Comprador]
+        U2[Vendedor]
+        U3[Administrador]
+    end
+
+    %% Navegador
+    subgraph Navegador["🌐 Navegador Web"]
+        N1[Interfaz de Usuario]
+    end
+
+    %% API Gateway
+    subgraph API["🔌 API Gateway"]
+        A1[Express.js API]
+        A2[Autenticación]
+        A3[Validación de Entrada]
+    end
+
+    %% Backend LabAGENT
+    subgraph Backend["🖥️ Backend LabAGENT (Node/TS)"]
+        B1[Controladores]
+        B2[Servicios de Negocio]
+        B3[Repositorios]
+        B4[Parser de Intención]
+        B5[Cliente Escrow Stellar]
+    end
+
+    %% Base de Datos
+    subgraph BaseDatos["💾 Base de Datos PostgreSQL"]
+        BD1[Tabla: requests]
+        BD2[Tabla: offers]
+        BD3[Tabla: messages]
+        BD4[Tabla: deals]
+        BD5[Tabla: events]
+        BD6[Tabla: agent_mandates]
+    end
+
+    %% Contratos Soroban
+    subgraph Contratos["⛓️ Contratos Soroban (Testnet)"]
+        C1[Escrow de Deal]
+        C2[Event Anchor]
+        C3[Agent Registry]
+    end
+
+    %% Red Stellar
+    subgraph Stellar["🌐 Stellar Testnet"]
+        S1[Nodo RPC]
+        S2[USDC SAC]
+    end
+
+    %% Conexiones
+    U1 --> Navegador
+    U2 --> Navegador
+    U3 --> Navegador
+    Navegador --> API
+    API --> Backend
+    Backend --> BaseDatos
+    Backend --> Contratos
+    Contratos --> Stellar
+
+    %% Conexiones específicas
+    Backend --> BD1
+    Backend --> BD2
+    Backend --> BD3
+    Backend --> BD4
+    Backend --> BD5
+    Backend --> BD6
+
+    Contratos --> C1
+    Contratos --> C2
+    Contratos --> C3
+
+    C1 --> S1
+    C2 --> S1
+    C3 --> S1
+    S1 --> S2
+
+    %% Estilos
+    classDef usuario fill:#5D9CEC,stroke:#2E86C1,color:#fff
+    classDef navegador fill:#48CFAD,stroke:#27AE60,color:#fff
+    classDef api fill:#F6BB42,stroke:#F39C12,color:#000
+    classDef backend fill:#A55EEA,stroke:#8E44AD,color:#fff
+    classDef bd fill:#E74C3C,stroke:#C0392B,color:#fff
+    classDef contratos fill:#9B59B6,stroke:#8E44AD,color:#fff
+    classDef stellar fill:#34495E,stroke:#2C3E50,color:#fff
+
+    class U1,U2,U3 usuario
+    class Navegador navegador
+    class A1,A2,A3 api
+    class B1,B2,B3,B4,B5 backend
+    class BD1,BD2,BD3,BD4,BD5,BD6 bd
+    class C1,C2,C3 contratos
+    class S1,S2 stellar
+```

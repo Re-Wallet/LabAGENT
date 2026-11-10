@@ -1,0 +1,94 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TD
+    %% Capa de Presentación (Frontend/API)
+    subgraph Capa_Presentacion["📱 Capa de Presentación (API REST)"]
+        API[API REST Express]
+        API_Controllers[Controladores Express]
+        API_Routes[Rutas API]
+    end
+
+    %% Capa de Aplicación
+    subgraph Capa_Aplicacion["🔧 Capa de Aplicación (Use Cases)"]
+        DealClosure[Servicio de Cierre de Deal]
+        AgentMandate[Servicio AgentMandate]
+        ParserIntencion[Parser de Intención]
+        Reputacion[Servicio Reputación]
+        EscrowClient[Cliente Escrow Soroban]
+    end
+
+    %% Capa de Dominio
+    subgraph Capa_Dominio["🎯 Capa de Dominio (Domain)"]
+        Request[Entidad Request]
+        Offer[Entidad Offer]
+        Deal[Entidad Deal]
+        Message[Entidad Message]
+        Event[Entidad Event]
+        AgentMandate[Entidad AgentMandate]
+    end
+
+    %% Capa de Infraestructura
+    subgraph Capa_Infraestructura["💾 Capa de Infraestructura"]
+        RepositorioRequests[Repositorio Requests]
+        RepositorioOffers[Repositorio Offers]
+        RepositorioMessages[Repositorio Messages]
+        RepositorioDeals[Repositorio Deals]
+        RepositorioEvents[Repositorio Events]
+        RepositorioMandates[Repositorio AgentMandates]
+        DB[(PostgreSQL<br/>Tabla: requests, offers,<br/>messages, deals, events,<br/>agent_mandates)]
+        Blockchain[Contratos Soroban<br/>Testnet]
+    end
+
+    %% Relaciones Capa Presentación -> Aplicación
+    API --> API_Controllers
+    API_Controllers --> API_Routes
+    API_Controllers --> DealClosure
+    API_Controllers --> AgentMandate
+    API_Controllers --> ParserIntencion
+    API_Controllers --> Reputacion
+
+    %% Relaciones Capa Aplicación -> Dominio
+    DealClosure --> Request
+    DealClosure --> Offer
+    DealClosure --> Deal
+    ParserIntencion --> Request
+    AgentMandate --> Offer
+    Reputacion --> AgentMandate
+
+    %% Relaciones Capa Aplicación -> Infraestructura
+    DealClosure --> RepositorioRequests
+    DealClosure --> RepositorioOffers
+    DealClosure --> RepositorioMessages
+    DealClosure --> RepositorioDeals
+    DealClosure --> RepositorioEvents
+    AgentMandate --> RepositorioMandates
+    EscrowClient --> Blockchain
+
+    %% Relaciones Capa Dominio -> Infraestructura
+    Request -.-> RepositorioRequests
+    Offer -.-> RepositorioOffers
+    Message -.-> RepositorioMessages
+    Deal -.-> RepositorioDeals
+    Event -.-> RepositorioEvents
+    AgentMandate -.-> RepositorioMandates
+
+    %% Repositorios -> DB
+    RepositorioRequests --> DB
+    RepositorioOffers --> DB
+    RepositorioMessages --> DB
+    RepositorioDeals --> DB
+    RepositorioEvents --> DB
+    RepositorioMandates --> DB
+
+    %% Estilos
+    classDef capaPresentacion fill:#5D9CEC,stroke:#2E86C1,color:#fff
+    classDef capaAplicacion fill:#48CFAD,stroke:#27AE60,color:#fff
+    classDef capaDominio fill:#F6BB42,stroke:#F39C12,color:#000
+    classDef capaInfraestructura fill:#A55EEA,stroke:#8E44AD,color:#fff
+
+    class API,API_Controllers,API_Routes capaPresentacion
+    class DealClosure,AgentMandate,ParserIntencion,Reputacion,EscrowClient capaAplicacion
+    class Request,Offer,Deal,Message,Event,AgentMandate capaDominio
+    class RepositorioRequests,RepositorioOffers,RepositorioMessages,RepositorioDeals,RepositorioEvents,RepositorioMandates,DB,Blockchain capaInfraestructura
+```

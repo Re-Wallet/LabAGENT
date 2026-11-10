@@ -1,0 +1,89 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TB
+    %% Capa 1: Mercado Interno
+    subgraph Capa1["🟢 Capa 1: Mercado Interno (Off-Chain)"]
+        C1_Requests[Requests - Solicitudes]
+        C1_Offers[Offers - Ofertas]
+        C1_Messages[Messages - Mensajes]
+        C1_Deals[Deals - Acuerdos]
+        C1_Events[Events - Eventos Off-Chain]
+    end
+
+    %% Capa 2: Escrow
+    subgraph Capa2["🔵 Capa 2: Escrow On-Chain"]
+        C2_Escrow[Contrato Escrow Soroban]
+        C2_Deposito[Depósito USDC]
+        C2_Liberacion[Liberación Fondos]
+        C2_Reembolso[Reembolso]
+    end
+
+    %% Capa 3: Política de Agente
+    subgraph Capa3["🟡 Capa 3: AgentMandate (Política)"]
+        C3_Mandate[AgentMandate - Límites]
+        C3_GastoMax[Gasto Máx por Operación]
+        C3_GastoAcum[Gasto Máximo Acumulado]
+        C3_RangoPrecio[Rango Precio Aceptable]
+        C3_PlazoMax[Plazo Máximo Entrega]
+        C3_Whitelist[Whitelist Contrapartes]
+    end
+
+    %% Capa 4: Trazabilidad y Reputación
+    subgraph Capa4["🔴 Capa 4: Trazabilidad y Reputación"]
+        C4_EventAnchor[Event Anchor - Merkle Root]
+        C4_AgentRegistry[Agent Registry - Identidad]
+        C4_Reputacion[Reputación Acumulada]
+        C4_Trazabilidad[Trazabilidad de Eventos]
+    end
+
+    %% Capa 5: Canales Externos (Futuro)
+    subgraph Capa5["⚪ Capa 5: Canales Externos (Futuro)"]
+        C5_ChatGPT[ChatGPT / ACP]
+        C5_Nirium[Nirium - Tesorería]
+    end
+
+    %% Relaciones entre capas
+    Capa1 --> Capa2
+    Capa2 --> Capa3
+    Capa3 --> Capa4
+    Capa4 --> Capa5
+
+    %% Relaciones internas Capa 1
+    C1_Requests --> C1_Offers
+    C1_Requests --> C1_Messages
+    C1_Requests --> C1_Deals
+    C1_Offers --> C1_Deals
+    C1_Deals --> C1_Events
+    C1_Messages --> C1_Events
+
+    %% Relaciones Capa 2
+    C2_Escrow --> C2_Deposito
+    C2_Escrow --> C2_Liberacion
+    C2_Escrow --> C2_Reembolso
+
+    %% Relaciones Capa 3
+    C3_Mandate --> C3_GastoMax
+    C3_Mandate --> C3_GastoAcum
+    C3_Mandate --> C3_RangoPrecio
+    C3_Mandate <- C3_PlazoMax
+    C3_Mandate <- C3_Whitelist
+
+    %% Relaciones Capa 4
+    C4_EventAnchor --> C4_Trazabilidad
+    C4_AgentRegistry --> C4_Reputacion
+    C4_Trazabilidad --> C4_Reputacion
+
+    %% Estilos
+    classDef capa1 fill:#5D9CEC,stroke:#2E86C1,color:#fff
+    classDef capa2 fill:#48CFAD,stroke:#27AE60,color:#fff
+    classDef capa3 fill:#F6BB42,stroke:#F39C12,color:#000
+    classDef capa4 fill:#A55EEA,stroke:#8E44AD,color:#fff
+    classDef capa5 fill:#95A5A6,stroke:#7F8C8D,color:#fff
+
+    class C1_Requests,C1_Offers,C1_Messages,C1_Deals,C1_Events capa1
+    class C2_Escrow,C2_Deposito,C2_Liberacion,C2_Reembolso capa2
+    class C3_Mandate,C3_GastoMax,C3_GastoAcum,C3_RangoPrecio,C3_PlazoMax,C3_Whitelist capa3
+    class C4_EventAnchor,C4_AgentRegistry,C4_Reputacion,C4_Trazabilidad capa4
+    class C5_ChatGPT,C5_Nirium capa5
+```

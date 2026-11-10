@@ -1,426 +1,336 @@
-# ReWallet Lab — Mercado Interno (Fase 1)
+# ReWallet Lab - Mercado Interno (Fase 1)
 
-Mercado interno de solicitudes (Request/Offer/Message/Deal) para la wallet ReWallet.
-**Off-chain**, listo para integrarse con la PoC Stellar existente y con el escrow en fases futuras.
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue)](https://www.postgresql.org/)
+[![Stellar Soroban](https://img.shields.io/badge/Stellar%20Soroban-Testnet-blue)](https://developers.stellar.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## ✅ Estado
+ReWallet Lab es un laboratorio de agentes autónomos para comercio electrónico descentralizado. Implementa un mercado interno de solicitudes (RFQ - Request for Quotation) donde compradores y vendedores negocian productos mediante agentes autónomos, con soporte para escrow on-chain en Stellar Soroban y trazabilidad completa de eventos.
 
-Vertical slice mínimo implementado y **validado con llamadas HTTP reales**.
-Servidor Express en vivo probado con Postgres. 16/16 tests E2E pasando.
+## 📋 Tabla de Contenidos
 
-## Stack
+- [🎯 Objetivo del Proyecto](#-objetivo-del-proyecto)
+- [🏗️ Arquitectura](#-arquitectura)
+- [📊 Diagrama de Arquitectura Hexagonal](#-diagrama-de-arquitectura-hexagonal)
+- [🔄 Flujo de Transacciones del Deal](#-flujo-de-transacciones-del-deal)
+- [📊 Capas del Sistema](#-capas-del-sistema)
+- [📋 Diagrama de Eventos y Trazabilidad](#-diagrama-de-eventos-y-trazabilidad)
+- [🚀 Despliegue del Sistema](#-despliegue-del-sistema)
+- [🛠️ Instalación y Configuración](#-instalación-y-configuración)
+- [📚 Endpoints de la API](#-endpoints-de-la-api)
+- [🔗 Contratos Desplegados en Testnet](#-contratos-desplegados-en-testnet)
+- [🧪 Pruebas E2E](#-pruebas-e2e)
+- [📖 Documentación de Investigación](#-documentación-de-investigación)
+- [🔗 Enlaces de Verificación](#-enlaces-de-verificación)
+- [📄 Licencia](#-licencia)
 
-- Node.js + TypeScript (Express)
-- PostgreSQL (pg)
-- Jest + supertest (tests)
+---
 
-## Instalación
+## 🎯 Objetivo del Proyecto
+
+El objetivo de ReWallet Lab es validar un mercado interno de solicitudes donde:
+
+1. **Usuarios** pueden expresar necesidades de compra en lenguaje natural
+2. **Agentes autónomos** parsean el lenguaje natural a solicitudes estructuradas (Request)
+3. **Mercado interno** permite que contrapartes envíen ofertas (Offer)
+4. **Negociación híbrida** donde el agente filtra y sugiere, pero el humano aprueba el deal final
+5. **Escrow on-chain** que retiene fondos hasta la liberación condicional
+6. **Trazabilidad completa** de todos los eventos en base de datos off-chain y anclaje on-chain
+
+---
+
+## 🏗️ Arquitectura
+
+El sistema sigue una **arquitectura hexagonal** (puertos y adaptadores) que separa claramente las responsabilidades:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Capa de Presentación (API REST)              │
+│                    ┌─────────────────────────────────┐          │
+│                    │  Express.js - Controladores     │          │
+│                    │  Rutas API - Validación         │          │
+│                    └─────────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    Capa de Aplicación (Use Cases)               │
+│                    ┌─────────────────────────────────┐          │
+│                    │  Cierre de Deal                 │          │
+│                    │  Agente Mandato               │          │
+│                    │  Parser de Intención          │          │
+│                    │  Reputación                   │          │
+│                    │  Cliente Escrow Soroban       │          │
+│                    └─────────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    Capa de Dominio (Domain)                     │
+│                    ┌─────────────────────────────────┐          │
+│                    │  Request / Offer / Deal         │          │
+│                    │  Message / Event                │          │
+│                    │  AgentMandate                 │          │
+│                    └─────────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    Capa de Infraestructura                      │
+│                    ┌─────────────────────────────────┐          │
+│                    │  Repositorios (PostgreSQL)      │          │
+│                    │  Contratos Soroban (Testnet)    │          │
+│                    └─────────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Capas del Sistema
+
+| Capa | Nombre | Descripción |
+|------|--------|-------------|
+| **Capa 1** | Mercado Interno | Request, Offer, Message, Deal, Events (off-chain) |
+| **Capa 2** | Escrow | Contrato Soroban para retención de fondos |
+| **Capa 3** | AgentMandate | Límites y permisos del agente (off-chain) |
+| **Capa 4** | Trazabilidad y Reputación | Eventos on-chain, Agent Registry, reputación |
+| **Capa 5** | Canales Externos | ChatGPT/ACP, Nirium (futuro) |
+
+---
+
+## 📊 Diagrama de Arquitectura Hexagonal
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TD
+    %% Capa de Presentación
+    subgraph Capa_Presentacion["📱 Capa de Presentación (API REST)"]
+        API[API REST Express]
+        API_Controllers[Controladores Express]
+        API_Routes[Rutas API]
+    end
+
+    %% Capa de Aplicación
+    subgraph Capa_Aplicacion["🔧 Capa de Aplicación (Use Cases)"]
+        DealClosure[Servicio de Cierre de Deal]
+        AgentMandate[Servicio AgentMandate]
+        ParserIntencion[Parser de Intención]
+        Reputacion[Servicio Reputación]
+        EscrowClient[Cliente Escrow Soroban]
+    end
+
+    %% Capa de Dominio
+    subgraph Capa_Dominio["🎯 Capa de Dominio (Domain)"]
+        Request[Entidad Request]
+        Offer[Entidad Offer]
+        Deal[Entidad Deal]
+        Message[Entidad Message]
+        Event[Entidad Event]
+        AgentMandate[Entidad AgentMandate]
+    end
+
+    %% Capa de Infraestructura
+    subgraph Capa_Infraestructura["💾 Capa de Infraestructura"]
+        RepositorioRequests[Repositorio Requests]
+        RepositorioOffers[Repositorio Offers]
+        RepositorioMessages[Repositorio Messages]
+        RepositorioDeals[Repositorio Deals]
+        RepositorioEvents[Repositorio Events]
+        RepositorioMandates[Repositorio AgentMandates]
+        DB[(PostgreSQL<br/>Tabla: requests, offers,<br/>messages, deals, events,<br/>agent_mandates)]
+        Blockchain[Contratos Soroban<br/>Testnet]
+    end
+
+    API --> API_Controllers --> API_Routes
+    API_Controllers --> DealClosure
+    API_Controllers --> AgentMandate
+    API_Controllers --> ParserIntencion
+    API_Controllers --> Reputacion
+
+    DealClosure --> Request
+    DealClosure --> Offer
+    DealClosure --> Deal
+    ParserIntencion --> Request
+    AgentMandate --> Offer
+    Reputacion --> AgentMandate
+
+    DealClosure --> RepositorioRequests
+    DealClosure --> RepositorioOffers
+    DealClosure --> RepositorioMessages
+    DealClosure --> RepositorioDeals
+    DealClosure --> RepositorioEvents
+    AgentMandate --> RepositorioMandates
+    EscrowClient --> Blockchain
+
+    Request -.-> RepositorioRequests
+    Offer -.-> RepositorioOffers
+    Message -.-> RepositorioMessages
+    Deal -.-> RepositorioDeals
+    Event -.-> RepositorioEvents
+    AgentMandate -.-> RepositorioMandates
+
+    RepositorioRequests --> DB
+    RepositorioOffers --> DB
+    RepositorioMessages --> DB
+    RepositorioDeals --> DB
+    RepositorioEvents --> DB
+    RepositorioMandates --> DB
+```
+
+---
+
+## 🔄 Flujo de Transacciones del Deal
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TD
+    UsuarioA[👤 Usuario A - Comprador]
+    UsuarioB[👤 Usuario B - Vendedor]
+    Mercado[🏪 Mercado Interno]
+    Escrow[⛓️ Contrato Escrow Soroban]
+
+    UsuarioA --> CrearRequest[Crear Request]
+    UsuarioB --> EnviarOffer[Enviar Offer]
+    CrearRequest --> AceptarOffer[Aceptar Offer]
+    EnviarOffer --> AceptarOffer
+
+    AceptarOffer --> PENDING_ESCROW[PENDING_ESCROW]
+    PENDING_ESCROW --> Depositar[Depositar USDC]
+    Depositar --> IN_ESCROW[IN_ESCROW]
+
+    IN_ESCROW --> Reclamar[Reclamar Entrega]
+    Reclamar --> DELIVERED[DELIVERED]
+
+    DELIVERED --> Confirmar[Confirmar Entrega]
+    Confirmar --> Liberar[Liberar Fondos]
+    Liberar --> SETTLED[SETTLED]
+
+    PENDING_ESCROW --> Reembolsar[Reembolsar]
+    DELIVERED --> Reembolsar
+    Reembolsar --> DISPUTED[DISPUTED]
+
+    Depositar -.-> Contrato_Escrow[Contrato Escrow Soroban]
+    Reclamar -.-> Contrato_Escrow
+    Confirmar -.-> Contrato_Escrow
+    Liberar -.-> Contrato_Escrow
+    Reembolsar -.-> Contrato_Escrow
+```
+
+---
+
+## 📋 Diagrama de Eventos y Trazabilidad
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TD
+    %% Eventos del Mercado
+    subgraph Eventos_Mercado["📊 Eventos de Mercado Interno"]
+        E1[RequestCreated]
+        E2[OfferSubmitted]
+        E3[OfferAccepted]
+        E4[OfferRejected]
+        E5[MessageSent]
+        E6[RequestCancelled]
+        E7[RequestExpired]
+        E8[RequestClosed]
+    end
+
+    %% Eventos del Escrow
+    subgraph Eventos_Escrow["⛓️ Eventos de Escrow"]
+        E9[DealCreated]
+        E10[Deposito]
+        E11[EntregaReclamada]
+        E12[EntregaConfirmada]
+        E13[Liberado]
+        E14[Reembolsado]
+        E15[Disputado]
+    end
+
+    %% Tabla de Eventos Off-Chain
+    subgraph Tabla_Events["💾 Tabla events (PostgreSQL Off-Chain)"]
+        T1[ID, type, actor_id, actor_tipo]
+        T2[request_id, offer_id, deal_id]
+        T3[payload JSONB]
+        T4[timestamp]
+    end
+
+    %% Anclaje On-Chain
+    subgraph Anclaje_OnChain["⛓️ Anclaje On-Chain (Event Anchor)"]
+        A1[Merkle Root]
+        A2[Batch de Eventos]
+        A3[Root Hash en Contrato]
+    end
+
+    E1 --> T1
+    E2 --> T1
+    E3 --> T1
+    E4 --> T1
+    E5 --> T1
+    E6 --> T1
+    E7 --> T1
+    E8 --> T1
+    E9 --> T1
+    E10 --> T1
+    E11 --> T1
+    E12 --> T1
+    E13 --> T1
+    E14 --> T1
+    E15 --> T1
+
+    T1 --> A1
+    A1 --> A2
+    A2 --> A3
+```
+
+---
+
+## 🚀 Despliegue del Sistema
+
+### 1. Backend (Node.js + Express)
 
 ```bash
+# Clonar el repositorio
+git clone https://github.com/Re-Wallet/LabAGENT.git
+cd LabAGENT
+
+# Instalar dependencias
 npm install
-```
 
-## Variables de entorno
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus valores
 
-Crear un archivo `.env` (o exportar las variables) con:
-
-```
-NODE_ENV=development
-PORT=3000
-DB_HOST=localhost
-DB_PORT=5434
-DB_USER=labagent
-DB_PASSWORD=
-DB_NAME=labagent
-
-AGENTE_ID=agente_negocio_1
-NEGOCIO_ID=negocio_1
-GASTO_MAX_POR_OPERACION=50000
-GASTO_MAX_ACUMULADO=200000
-GASTO_VENTANA_TIEMPO_DIAS=30
-RANGO_PRECIO_MIN=1
-RANGO_PRECIO_MAX=100000
-PLAZO_MAX_ENTREGA_DIAS=7
-```
-
-> Nota: los archivos `.env*` fueron bloqueados por la política de seguridad del entorno; crear el `.env` manualmente o exportar las variables.
-
-## Base de datos
-
-El DDL oficial (tablas `requests`, `offers`, `messages`, `deals`, `events`, `agent_mandates`, trigger de inmutabilidad de `messages`) vive en **otro proyecto/rama** por instrucción del usuario.
-
-Para validación local, `tests/setup.ts` contiene un DDL equivalente.
-
-## Ejecutar en desarrollo
-
-```bash
-# Compilar
+# Compilar TypeScript
 npx tsc
 
-# Arrancar
-DB_HOST=/tmp DB_PORT=5434 DB_USER=labagent DB_PASSWORD= DB_NAME=labagent \
-  NODE_ENV=development PORT=3000 node dist/index.js
-
-# Servidor en http://localhost:3000
+# Iniciar el servidor
+node dist/index.js
 ```
 
-## Ejecutar tests
+### 2. Base de Datos PostgreSQL
 
 ```bash
-DB_HOST=/tmp DB_PORT=5434 DB_USER=labagent DB_PASSWORD= DB_NAME=labagent \
-  npx jest
+# Crear base de datos y usuario
+sudo -u postgres psql -c "CREATE USER labagent WITH PASSWORD 'labagent';"
+sudo -u postgres psql -c "CREATE DATABASE labagent OWNER labagent;"
+
+# Ejecutar migraciones (DDL en tests/setup.ts)
+psql -h localhost -U labagent -d labagent -f tests/setup.ts
 ```
 
----
-
-## 📊 Evidencia de credibilidad: demo en vivo (curl real)
-
-A continuación se muestran **respuestas JSON reales** de un servidor Express corriendo en `http://localhost:3000` con Postgres en el puerto 5434.
-
-### 1) Health check
+### 3. Contratos Soroban (Testnet)
 
 ```bash
-curl -s http://localhost:3000/health | python3 -m json.tool
-```
-
-```json
-{
-    "status": "ok",
-    "db": "connected"
-}
-```
-
-### 2) Parser con texto libre (sin confirmar)
-
-```bash
-curl -s -X POST http://localhost:3000/requests \
-  -H "Content-Type: application/json" \
-  -d '{"texto": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes"}'
-```
-
-```json
-{
-    "ok": true,
-    "pendienteConfirmacion": true,
-    "mensaje": "Revisá los datos antes de publicar.",
-    "parsed": {
-        "producto": "azúcar",
-        "cantidad": 10,
-        "unidad": "kg",
-        "precio_max": 1500,
-        "plazo_entrega": "2026-11-14T05:05:52.815Z",
-        "ubicacion": null,
-        "categoria": null,
-        "tags": [],
-        "perfil_solicitante": null,
-        "raw": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes",
-        "missing": []
-    }
-}
-```
-
-### 3) Crear request confirmado (publicar)
-
-```bash
-curl -s -X POST http://localhost:3000/requests \
-  -H "Content-Type: application/json" \
-  -d '{"texto": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes", "confirmado": true, "solicitante_id": "usuario_a", "agente_id": "agente_negocio_1", "producto": "azúcar", "cantidad": 10, "unidad": "kg", "precio_max": 1500, "perfil_solicitante": "comercio"}'
-```
-
-```json
-{
-    "ok": true,
-    "pendienteConfirmacion": false,
-    "request": {
-        "id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-        "solicitante_id": "usuario_a",
-        "agente_id": "agente_negocio_1",
-        "producto": "azúcar",
-        "cantidad": "10",
-        "unidad": "kg",
-        "precio_max": "1500",
-        "plazo_entrega": null,
-        "ubicacion": null,
-        "categoria": null,
-        "tags": [],
-        "perfil_solicitante": "comercio",
-        "estado": "OPEN",
-        "created_at": "2026-11-10T05:05:52.867Z",
-        "expires_at": "2026-11-17T05:05:52.866Z"
-    },
-    "mensaje": "Solicitud publicada. Estado: OPEN."
-}
-```
-
-### 4) Listar tablero
-
-```bash
-curl -s http://localhost:3000/requests | python3 -m json.tool
-```
-
-```json
-{
-    "ok": true,
-    "count": 1,
-    "requests": [
-        {
-            "id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-            "solicitante_id": "usuario_a",
-            "agente_id": "agente_negocio_1",
-            "producto": "azúcar",
-            "cantidad": "10",
-            "unidad": "kg",
-            "precio_max": "1500",
-            "estado": "OPEN",
-            ...
-        }
-    ]
-}
-```
-
-### 5) Usuario B envía Offer (mensaje con oferta)
-
-```bash
-curl -s -X POST "http://localhost:3000/requests/0b967560-1563-4a77-bebc-da1bc2e35e43/messages" \
-  -H "Content-Type: application/json" \
-  -d '{"autor_id": "usuario_b", "autor_tipo": "AGENT", "tipo": "OFFER", "contenido": "Te ofrezco 10 kg de azúcar a $1400/kg, entrega en puerta.", "precio": 1400, "cantidad": 10, "condiciones_entrega": "Entrega en puerta, pago contra entrega.", "oferente_id": "usuario_b", "agente_oferente_id": "agente_negocio_2"}'
-```
-
-```json
-{
-    "ok": true,
-    "message": {
-        "id": "b0ab12c8-ebf1-4876-bfda-d048544b6289",
-        "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-        "autor_id": "usuario_b",
-        "autor_tipo": "AGENT",
-        "tipo": "OFFER",
-        "contenido": "Te ofrezco 10 kg de azúcar a $1400/kg, entrega en puerta. [oferta_id:364f7e72-8c90-4de0-8a0c-5e14994c1958]",
-        "created_at": "2026-11-10T05:06:02.775Z"
-    },
-    "offer_id": "364f7e72-8c90-4de0-8a0c-5e14994c1958"
-}
-```
-
-### 6) Resumen del agente (filtro por AgentMandate)
-
-```bash
-curl -s "http://localhost:3000/requests/0b967560-1563-4a77-bebc-da1bc2e35e43/resumen-agente?agente_id=agente_negocio_1" | python3 -m json.tool
-```
-
-```json
-{
-    "ok": true,
-    "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-    "estado": "NEGOTIATING",
-    "mandato": {
-        "agente_id": "agente_negocio_1",
-        "negocio_id": "negocio_1",
-        "gasto_max_por_operacion": 50000,
-        "gasto_max_acumulado": 200000,
-        "gasto_ventana_tiempo_dias": null,
-        "rango_precio_aceptable_min": 1,
-        "rango_precio_aceptable_max": 100000,
-        "plazo_max_entrega_dias": null,
-        "whitelist_contrapartes": []
-    },
-    "resumen": {
-        "total": 1,
-        "dentroDeMandato": 1,
-        "fueraDeMandato": 0,
-        "recomendadas": [
-            {
-                "offerId": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
-                "oferente": "usuario_b",
-                "precio": 1400,
-                "cantidad": 10,
-                "condiciones": "Entrega en puerta, pago contra entrega.",
-                "total": 14000
-            }
-        ],
-        "escalar": []
-    },
-    "ofertas_detalle": [
-        {
-            "offer": {
-                "id": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
-                "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-                "oferente_id": "usuario_b",
-                "agente_oferente_id": "agente_negocio_2",
-                "precio": 1400,
-                "cantidad": 10,
-                "condiciones_entrega": "Entrega en puerta, pago contra entrega.",
-                "estado": "PENDING",
-                "created_at": "2026-11-10T05:06:02.766Z"
-            },
-            "dentroDeMandato": true,
-            "razonesFuera": []
-        }
-    ]
-}
-```
-
-### 7) Aceptar oferta → Deal en PENDING_ESCROW
-
-```bash
-curl -s -X POST "http://localhost:3000/requests/0b967560-1563-4a77-bebc-da1bc2e35e43/offers/364f7e72-8c90-4de0-8a0c-5e14994c1958/accept" \
-  -H "Content-Type: application/json" \
-  -d '{"actor_id": "usuario_a"}' | python3 -m json.tool
-```
-
-```json
-{
-    "ok": true,
-    "mensaje": "Deal creado en PENDING_ESCROW. Aprobado por el humano.",
-    "result": {
-        "offer": {
-            "id": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
-            "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-            "oferente_id": "usuario_b",
-            "agente_oferente_id": "agente_negocio_2",
-            "precio": 1400,
-            "cantidad": 10,
-            "condiciones_entrega": "Entrega en puerta, pago contra entrega.",
-            "estado": "ACCEPTED",
-            "created_at": "2026-11-10T05:06:02.766Z"
-        },
-        "deal": {
-            "id": "1e8114de-fac4-4a7f-8409-e02b8e9ca662",
-            "request_id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-            "offer_id": "364f7e72-8c90-4de0-8a0c-5e14994c1958",
-            "precio_final": 1400,
-            "condiciones_finales": "Entrega en puerta, pago contra entrega.",
-            "estado": "PENDING_ESCROW",
-            "created_at": "2026-11-10T05:06:08.156Z"
-        },
-        "request": {
-            "id": "0b967560-1563-4a77-bebc-da1bc2e35e43",
-            "solicitante_id": "usuario_a",
-            "agente_id": "agente_negocio_1",
-            "producto": "azúcar",
-            "cantidad": "10",
-            "unidad": "kg",
-            "precio_max": "1500",
-            "estado": "CLOSED",
-            ...
-        }
-    }
-}
-```
-
-### 8) Reputación básica off-chain por agente
-
-```bash
-curl -s "http://localhost:3000/reputacion/agente_negocio_1" | python3 -m json.tool
-```
-
-```json
-{
-    "ok": true,
-    "reputacion": {
-        "agente_id": "agente_negocio_1",
-        "requests_publicados": 1,
-        "ofertas_enviadas": 0,
-        "ofertas_aceptadas": 0,
-        "deals_creados": 0,
-        "solicitudes_canceladas": 0,
-        "mensajes_enviados": 0,
-        "tiempo_medio_respuesta_segundos": null,
-        "tasa_respuesta": null,
-        "tasa_cancelacion": 0,
-        "conversion_request_a_deal": 0
-    }
-}
-```
-
-```bash
-# Agente sin actividad
-curl -s "http://localhost:3000/reputacion/agente_inexistente" | python3 -m json.tool
-```
-
-```json
-{
-    "ok": true,
-    "reputacion": {
-        "agente_id": "agente_inexistente",
-        "requests_publicados": 0,
-        "ofertas_enviadas": 0,
-        "ofertas_aceptadas": 0,
-        "deals_creados": 0,
-        "solicitudes_canceladas": 0,
-        "mensajes_enviados": 0,
-        "tiempo_medio_respuesta_segundos": null,
-        "tasa_respuesta": null,
-        "tasa_cancelacion": null,
-        "conversion_request_a_deal": null
-    }
-}
-```
-
-### 9) Eventos emitidos (tabla `events`)
-
-Después del flujo completo, la base de datos contiene 6 eventos estándar:
-
-| type | actor_id | request_id |
-|------|----------|------------|
-| RequestCreated | agente_negocio_1 | `0b967560...` |
-| OfferSubmitted | usuario_b | `0b967560...` |
-| MessageSent | usuario_b | `0b967560...` |
-| OfferAccepted | usuario_b | `0b967560...` |
-| DealCreated | system | `0b967560...` |
-| RequestClosed | usuario_a | `0b967560...` |
-
-Estado final del request: **CLOSED**  
-Estado del deal: **PENDING_ESCROW** (puente al escrow, fase siguiente)
-
----
-
-## Capa 2 — Escrow on-chain (Soroban / Stellar Testnet)
-
-El contrato de escrow está implementado en Rust/Soroban y compilado. Está diseñado para retener fondos USDC en un Deal hasta que se cumplan las condiciones de liberación.
-
-### Contrato de escrow (`contracts/escrow-deal/`)
-
-**Estado:** Compilado (18.9 KB WASM, 13 funciones), listo para desplegar en testnet.
-
-**Estados del Deal:**
-```
-PENDING_ESCROW → IN_ESCROW → DELIVERED → SETTLED
-                        │              │
-                        └─────────────▶ DISPUTED
-```
-
-**Funciones del contrato:**
-| Función | Descripción | Quién la llama |
-|---------|-------------|----------------|
-| `depositar` | Bloquea USDC del comprador, crea Deal en PENDING_ESCROW | Comprador |
-| `reclamar_entrega` | Vendedor indica que entregó, estado → IN_ESCROW | Vendedor |
-| `confirmar_entrega` | Comprador confirma recepción, estado → DELIVERED | Comprador |
-| `liberar` | Transfiere USDC al vendedor, estado → SETTLED | Comprador |
-| `reembolsar` | Devuelve USDC al comprador, estado → DISPUTED | Comprador |
-| `disputar` | Abre disputa (Capa 3) | Cualquiera |
-| `pause` / `unpause` | Stop de emergencia | Admin |
-| `set_admin` | Rotación de clave admin | Admin |
-
-**Eventos on-chain (nombres estándar I7):**
-`Deposito`, `EntregaReclamada`, `EntregaConfirmada`, `Liberado`, `Reembolsado`, `Disputado`, `Pause`, `AdminRotado`.
-
-### Despliegue en testnet
-
-```bash
+# Construir contratos
 cd contracts/escrow-deal
-
-# 1. Compilar
 stellar contract build
 
-# 2. Crear activo USDC en testnet (SAC)
-stellar contract asset deploy \
-  --asset "USDC:TU_PUBLIC_KEY" \
-  --source-account TU_CUENTA \
-  --network testnet \
-  --alias usdc_testnet
+cd ../event-anchor
+stellar contract build
 
-# 3. Desplegar contrato de escrow
+cd ../agent-registry
+stellar contract build
+
+# Desplegar en testnet
 stellar contract deploy \
   --wasm target/wasm32v1-none/release/escrow_deal.wasm \
   --alias escrow_deal_v1 \
@@ -432,80 +342,233 @@ stellar contract deploy \
   --settle-grace-seconds 604800
 ```
 
-### Integración con LabAGENT (pendiente)
+---
 
-El backend de LabAGENT (Node/TS) se conectará al contrato Soroban vía `stellar-sdk` para:
-- Crear el Deal en PENDING_ESCROW al aceptar una oferta
-- Depositar USDC en el contrato al aceptar el Deal
-- Sincronizar el estado del Deal desde eventos on-chain
+## 🛠️ Instalación y Configuración
+
+### Prerrequisitos
+
+- Node.js 18+
+- PostgreSQL 15+
+- Stellar CLI (para contratos)
+- Rust + cargo (para contratos Soroban)
+
+### Variables de Entorno
+
+Crear archivo `.env`:
+
+```env
+NODE_ENV=development
+PORT=3000
+DB_HOST=localhost
+DB_PORT=5434
+DB_USER=labagent
+DB_PASSWORD=labagent
+DB_NAME=labagent
+
+AGENTE_ID=agente_negocio_1
+NEGOCIO_ID=negocio_1
+GASTO_MAX_POR_OPERACION=50000
+GASTO_MAX_ACUMULADO=200000
+GASTO_VENTANA_TIEMPO_DIAS=30
+RANGO_PRECIO_MIN=1
+RANGO_PRECIO_MAX=100000
+PLAZO_MAX_ENTREGA_DIAS=7
+
+SOROBAN_CONTRACT_ID=CBTW3FBMCPURBGUGUL3TKVKKNPDPBMPQGQMCK4VK2MAHJXU7NHNXGEAP
+SOROBAN_SAC_ID=CBPYDMY3MU6CDAY2QVPUV735Q7IT5BEG33IDJEDZUBP4A5IXSOAAAA62
+SOROBAN_ADMIN_SECRET_KEY=TU_SECRET_KEY
+```
 
 ---
 
-## Endpoints
+## 📚 Endpoints de la API
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `POST` | `/requests` | Crear solicitud (texto libre con confirmación, o estructura directa) |
-| `GET` | `/requests` | Listar tablero (filtros: `estado`, `categoria`, `agente_id`, `limit`, `offset`) |
+| `GET` | `/requests` | Listar tablero (filtros: estado, categoria, agente_id, limit, offset) |
 | `GET` | `/requests/:id` | Ver solicitud + sala (offers, messages, deal) |
-| `POST` | `/requests/:id/messages` | Enviar mensaje u oferta (`OFFER`, `COUNTER_OFFER`, `TEXT`) |
-| `POST` | `/requests/:id/offers/:offerId/accept` | Aceptar oferta → Deal en `PENDING_ESCROW` → Request `CLOSED` |
+| `POST` | `/requests/:id/messages` | Enviar mensaje u oferta (OFFER, COUNTER_OFFER, TEXT) |
+| `POST` | `/requests/:id/offers/:offerId/accept` | Aceptar oferta → Deal en PENDING_ESCROW → Request CLOSED |
 | `POST` | `/requests/:id/cancel` | Cancelar solicitud |
-| `GET` | `/requests/:id/resumen-agente` | Resumen del agente del solicitante (filtro por `AgentMandate`) |
-| `GET` | `/reputacion/:agenteId` | Reputación básica off-chain por `agente_id` |
+| `GET` | `/requests/:id/resumen-agente` | Resumen del agente del solicitante (filtro por AgentMandate) |
+| `POST` | `/requests/:id/sincronizar-estado` | Sincronizar estado del Deal con payment link del Prototype |
+| `GET` | `/reputacion/:agenteId` | Reputación básica off-chain por agente_id |
 | `GET` | `/health` | Health check |
 
-## Parser con reglas
+### Ejemplo: Crear Request
 
-Soporta frases como:
-- `"necesito 10 kg de azúcar"`
-- `"quiero comprar 10 kg de azúcar, hasta $1500/kg, para el viernes"`
-- `"busco 50 litros de diésel a menos de $900"`
-- `"necesito 200 unidades de papel A4, zona Belgrano"`
+```bash
+curl -s -X POST http://localhost:3000/requests \
+  -H "Content-Type: application/json" \
+  -d '{"texto": "necesito 10 kg de azúcar, hasta $1500/kg, para el viernes", "confirmado": true, "solicitante_id": "usuario_a", "agente_id": "agente_negocio_1", "producto": "azúcar", "cantidad": 10, "unidad": "kg", "precio_max": 1500}'
+```
 
-Si faltan campos obligatorios (producto, cantidad, unidad), devuelve error pidiendo aclaración al humano (no inventa valores).
+Respuesta:
+```json
+{
+  "ok": true,
+  "request": {
+    "id": "uuid-generado",
+    "solicitante_id": "usuario_a",
+    "agente_id": "agente_negocio_1",
+    "producto": "azúcar",
+    "cantidad": "10",
+    "unidad": "kg",
+    "precio_max": "1500",
+    "estado": "OPEN"
+  }
+}
+```
 
-## Invariantes respetadas
+### Ejemplo: Aceptar Oferta
 
-- **I1**: Request es el objeto central (request-céntrico, no libro de órdenes).
-- **I2**: Sala de negociación = set de `Message` con el mismo `request_id`.
-- **I3**: Todo cambio de estado emite un evento (tabla `events`).
-- **I4**: `Message` es inmutable (trigger de BD + solo endpoint POST).
-- **I5**: Deal es el puente al escrow (se detiene en `PENDING_ESCROW` en fase 1; en Capa 2 pasa a `IN_ESCROW` → `DELIVERED` → `SETTLED`).
-- **I6**: `AgentMandate` modelado desde ahora, aplicado off-chain.
-- **I7**: Nombres de evento estándar (`RequestCreated`, `OfferSubmitted`, `OfferAccepted`, `DealCreated`, `MessageSent`, `RequestCancelled`, `OfferRejected`, `RequestClosed`).
-- **I8**: `categoria`, `tags`, `ubicacion` existen desde el inicio.
-- **I9**: `agente_id` distinto del humano.
-- **I10**: Negociación híbrida (agente sugiere, humano aprueba el deal).
+```bash
+curl -s -X POST "http://localhost:3000/requests/:id/offers/:offerId/accept" \
+  -H "Content-Type: application/json" \
+  -d '{"actor_id": "usuario_a"}'
+```
 
-## Siguientes fases
+Respuesta:
+```json
+{
+  "ok": true,
+  "mensaje": "Deal creado en PENDING_ESCROW. Aprobado por el humano.",
+  "result": {
+    "deal": {
+      "id": "uuid-deal",
+      "estado": "PENDING_ESCROW",
+      "precio_final": 1500
+    }
+  }
+}
+```
 
-- **Capa 2 (en progreso):** Contrato de escrow Soroban escrito y compilado. Pendiente: desplegar en testnet, integrar con backend Node/TS, pruebas E2E.
-- **Capa 3:** AgentMandate on-chain (REAPP o Eunomia como candidatos).
-- **Capa 4:** Trazabilidad on-chain (anclaje on-chain de eventos, reputación por agente_id).
-- **Capa 5:** Canales externos (ChatGPT/ACP), Nirium para tesorería.
+---
 
-## Archivos del proyecto
+## 🔗 Contratos Desplegados en Testnet
+
+| Contrato | Dirección | Descripción |
+|----------|-----------|-------------|
+| **Escrow de Deal** | `CAR4Z3CHDEYMMR6J6XMOWHRTWA45YDFAGGQXR7O76HAKM3ERJG33M47D` | Retiene USDC en escrow hasta liberación |
+| **Event Anchor** | `CAB57G6KNWEV24PSF6BBOW6IG4KMT4E2IOVSSFJGOFPFE4LY3YWDJEM5` | Anclaje de eventos off-chain con Merkle root |
+| **Agent Registry** | `CDDFBJ6UBN76FH6Q5PDPAHGSGV32OS4GZ5SF7TYUVJBV2UUDQN7RHMUN` | Registro de agentes y reputación acumulable |
+
+### Verificar Contratos en Stellar Testnet
+
+- [Escrow en Stellar Testnet](https://stellar.expert/explorer/testnet/contract/CAR4Z3CHDEYMMR6J6XMOWHRTWA45YDFAGGQXR7O76HAKM3ERJG33M47D)
+- [Event Anchor en Stellar Testnet](https://stellar.expert/explorer/testnet/contract/CAB57G6KNWEV24PSF6BBOW6IG4KMT4E2IOVSSFJGOFPFE4LY3YWDJEM5)
+- [Agent Registry en Stellar Testnet](https://stellar.expert/explorer/testnet/contract/CDDFBJ6UBN76FH6Q5PDPAHGSGV32OS4GZ5SF7TYUVJBV2UUDQN7RHMUN)
+- [USDC SAC en Stellar Testnet](https://stellar.expert/explorer/testnet/contract/CBPYDMY3MU6CDAY2QVPUV735Q7IT5BEG33IDJEDZUBP4A5IXSOAAAA62)
+
+---
+
+## 🧪 Pruebas E2E
+
+### Ejecutar todos los tests
+
+```bash
+npm test
+```
+
+### Ejecutar tests específicos
+
+```bash
+npx jest tests/e2e-mercado-interno.test.ts --verbose
+```
+
+### Casos de Prueba
+
+| Test | Descripción | Estado |
+|------|-------------|--------|
+| Parser convierte texto a Request estructurado | ✅ Pasa |
+| Parser falla limpiamente sin cantidad | ✅ Pasa |
+| Parser falla limpiamente en saludo | ✅ Pasa |
+| POST /requests - crear request desde texto libre | ✅ Pasa |
+| POST /requests - crear request confirmado | ✅ Pasa |
+| GET /requests - listar tablero | ✅ Pasa |
+| POST /messages - Usuario B envía Offer | ✅ Pasa |
+| GET /requests/:id - ver solicitud + sala | ✅ Pasa |
+| GET /resumen-agente - agente filtra ofertas | ✅ Pasa |
+| POST /accept - Usuario A acepta → Deal PENDING_ESCROW | ✅ Pasa |
+| Verificar eventos emitidos | ✅ Pasa |
+| Deal está en PENDING_ESCROW | ✅ Pasa |
+| Inmutabilidad de Message | ✅ Pasa |
+| GET /reputacion/:agenteId | ✅ Pasa |
+| Agente sin actividad devuelve ceros | ✅ Pasa |
+| Wallet mapping: guardar y obtener | ✅ Pasa |
+| Deal payment link: guardar y obtener | ✅ Pasa |
+
+---
+
+## 🔗 Enlaces de Verificación
+
+### Enlaces Externos
+
+- [Stellar Testnet Explorer](https://stellar.expert/explorer/testnet)
+- [Stellar Lab](https://lab.stellar.org/)
+- [Documentación Soroban](https://developers.stellar.org/docs/build/smart-contracts/overview)
+- [CAP-0046-08 - Smart Contract Logging](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0046.md)
+
+### Enlaces Internos
+
+- [Research Mercado Interno](./RESEARCH_MERCADO_INTERNO.md)
+- [Research Capa 2 - Escrow](./RESEARCH_CAPA2_ESCROW_SOROBAN.md)
+- [Research Cogladius (evaluado y descartado)](./RESEARCH_CAPA2_COGLADIUS_ESCROW.md)
+- [Research Capa 4 - Trazabilidad y Reputación](./RESEARCH_CAPA4_TRAZABILIDAD_REPUTACION.md)
+- [Research Opción C - Mandate Gobernado](./RESEARCH_OPCION_C_MANDATE_GOBERNADO.md)
+- [Diseño de Contratos Capa 2](./docs/architecture/diagrams/)
+
+---
+
+## 📦 Estructura del Proyecto
 
 ```
 LabAGENT/
-├── src/                    # Backend Node/TS (mercado off-chain)
-│   ├── parser/             # Parser con reglas (no LLM)
-│   ├── repositories/       # Repositorios de BD
-│   ├── services/           # Servicios de negocio
-│   ├── controllers/        # Controladores Express
-│   └── routes/             # Rutas de la API
-├── tests/                  # Tests E2E (18/18 pasando)
-├── contracts/              # Contratos Soroban (Capa 2)
-│   └── escrow-deal/
-│       ├── Cargo.toml
-│       └── src/lib.rs      # Contrato de escrow (compilado)
-├── RESEARCH_MERCADO_INTERNO.md   # Research fase 1
-├── RESEARCH_CAPA2_ESCROW_SOROBAN.md  # Research Capa 2
-├── RESEARCH_CAPA2_COGLADIUS_ESCROW.md  # Research Cogladius (evaluado y descartado)
-├── DISENO_CAPA2_CONTRATOS_SOROBAN.md  # Diseño de contratos Capa 2
-├── README.md               # Este archivo
-├── docker-compose.yml      # Postgres para desarrollo
-└── jest.config.js          # Configuración de Jest
+├── src/
+│   ├── config/          # Configuración DB y entorno
+│   ├── controllers/     # Controladores Express
+│   ├── events/          # Servicio de eventos
+│   ├── parser/          # Parser con reglas (no LLM)
+│   ├── repositories/    # Repositorios de BD
+│   ├── routes/          # Rutas de la API
+│   ├── services/        # Servicios de negocio
+│   │   ├── deal-closure.service.ts
+│   │   ├── reputacion.service.ts
+    │   ├── escrow-client.service.ts
+│   │   └── agent-mandate.service.ts
+│   └── index.ts         # Punto de entrada
+├── tests/               # Tests E2E
+├── contracts/           # Contratos Soroban
+│   ├── escrow-deal/
+│   ├── event-anchor/
+│   └── agent-registry/
+├── docs/                # Documentación y diagramas
+│   └── architecture/diagrams/
+├── scripts/             # Scripts de utilidad
+├── RESEARCH_*.md        # Documentos de investigación
+├── README.md            # Este archivo
+├── docker-compose.yml   # Postgres para desarrollo
+└── jest.config.js       # Configuración de Jest
 ```
 
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+
+---
+
+## 🤝 Contribuir
+
+1. Fork el repositorio
+2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit tus cambios (`git commit -am 'Añadir nueva funcionalidad'`)
+4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Abre un Pull Request
+
+---
+
+**Desarrollado con ❤️ para el laboratorio ReWallet**

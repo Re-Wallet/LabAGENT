@@ -1,0 +1,76 @@
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#5D9CEC', 'secondaryColor': '#48CFAD', 'tertiaryColor': '#F6BB42', 'fontFamily': 'Arial'}}}%%
+
+graph TD
+    %% Eventos del Mercado
+    subgraph Eventos_Mercado["📊 Eventos de Mercado Interno"]
+        E1[RequestCreated]
+        E2[OfferSubmitted]
+        E3[OfferAccepted]
+        E4[OfferRejected]
+        E5[MessageSent]
+        E6[RequestCancelled]
+        E7[RequestExpired]
+        E8[RequestClosed]
+    end
+
+    %% Eventos del Escrow
+    subgraph Eventos_Escrow["⛓️ Eventos de Escrow"]
+        E9[DealCreated]
+        E10[Depositado]
+        E11[EntregaReclamada]
+        E12[EntregaConfirmada]
+        E13[Liberado]
+        E14[Reembolsado]
+        E15[Disputado]
+    end
+
+    %% Tabla de Eventos Off-Chain
+    subgraph Tabla_Events["💾 Tabla events (PostgreSQL Off-Chain)"]
+        T1[ID, type, actor_id, actor_tipo]
+        T2[request_id, offer_id, deal_id]
+        T3[payload JSONB]
+        T4[timestamp]
+    end
+
+    %% Anclaje On-Chain
+    subgraph Anclaje_OnChain["⛓️ Anclaje On-Chain (Event Anchor)"]
+        A1[Merkle Root]
+        A2[Batch de Eventos]
+        A3[Root Hash en Contrato]
+    end
+
+    %% Flujo de eventos
+    E1 --> T1
+    E2 --> T1
+    E3 --> T1
+    E4 --> T1
+    E5 --> T1
+    E6 --> T1
+    E7 --> T1
+    E8 --> T1
+    E9 --> T1
+    E10 --> T1
+    E11 --> T1
+    E12 --> T1
+    E12 --> T1
+    E13 --> T1
+    E14 --> T1
+    E15 --> T1
+
+    %% Anclaje de eventos a on-chain
+    T1 --> A1
+    A1 --> A2
+    A2 --> A3
+
+    %% Estilos
+    classDef eventoMercado fill:#5D9CEC,stroke:#2E86C1,color:#fff
+    classDef eventoEscrow fill:#48CFAD,stroke:#27AE60,color:#fff
+    classDef tablaEventos fill:#F6BB42,stroke:#F39C12,color:#000
+    classDef anclaje fill:#A55EEA,stroke:#8E44AD,color:#fff
+
+    class E1,E2,E3,E4,E5,E6,E7,E8 eventoMercado
+    class E9,E10,E11,E12,E13,E14,E15 eventoEscrow
+    class T1,T2,T3,T4 tablaEventos
+    class A1,A2,A3 anclaje
+```

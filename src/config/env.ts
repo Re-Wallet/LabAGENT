@@ -16,4 +16,11 @@ export const env = {
   RANGO_PRECIO_MIN: parseFloat(process.env.RANGO_PRECIO_MIN || '1'),
   RANGO_PRECIO_MAX: parseFloat(process.env.RANGO_PRECIO_MAX || '100000'),
   PLAZO_MAX_ENTREGA_DIAS: parseInt(process.env.PLAZO_MAX_ENTREGA_DIAS || '7', 10),
+
+  // Soroban/Escrow (Capa 2)
+  SOROBAN_RPC_URL: process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
+  SOROBAN_NETWORK_PASSPHRASE: process.env.SOROBAN_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
+  SOROBAN_CONTRACT_ID: process.env.SOROBAN_CONTRACT_ID || '', // vacío = sin escrow on-chain
+  SOROBAN_SAC_ID: process.env.SOROBAN_SAC_ID || '', // vacío = sin escrow on-chain
+  SOROBAN_ADMIN_SECRET_KEY: process.env.SOROBAN_ADMIN_SECRET_KEY || '',
 };

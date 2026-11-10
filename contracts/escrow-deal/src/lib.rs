@@ -219,9 +219,13 @@ impl EscrowDealContract {
         monto: i128,
         _deadline: u64,
     ) -> Result<u64, Error> {
-        comprador.require_auth();
-
+        // Solo el admin puede depositar en nombre del comprador
         let config = Self::config(&env);
+        config.admin.require_auth();
+
+        if config.paused {
+            return Err(Error::Paused);
+        }
         if config.paused {
             return Err(Error::Paused);
         }

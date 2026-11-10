@@ -7,7 +7,6 @@ import {
   aceptarOferta,
   cancelarRequest,
   resumenAgente,
-  sincronizarEstadoDeal,
 } from '../controllers/requests.controller';
 
 const router = Router();
@@ -32,8 +31,5 @@ router.post('/:id/cancel', cancelarRequest);
 
 // GET /requests/:id/resumen-agente — resumen del agente del solicitante
 router.get('/:id/resumen-agente', resumenAgente);
-
-// POST /requests/:id/sincronizar-estado — sincronizar estado del Deal con payment link del Prototype
-router.post('/:id/sincronizar-estado', sincronizarEstadoDeal);
 
 export default router;

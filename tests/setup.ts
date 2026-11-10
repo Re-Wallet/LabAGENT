@@ -123,32 +123,6 @@ INSERT INTO agent_mandates (
 ) VALUES (
   'agente_negocio_1', 'negocio_1', 50000, 200000, '30 days', 1, 100000, '7 days', '{}'
 ) ON CONFLICT (agente_id) DO NOTHING;
-
--- Tablas para integración con Prototype (Solana)
-CREATE TABLE IF NOT EXISTS wallet_mappings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  labagent_user_id TEXT NOT NULL UNIQUE,
-  solana_public_key TEXT NOT NULL,
-  network TEXT NOT NULL DEFAULT 'devnet',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS deal_payment_links (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  deal_id UUID NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
-  slug TEXT NOT NULL UNIQUE,
-  reference_pubkey TEXT NOT NULL,
-  amount_usdc NUMERIC,
-  status TEXT NOT NULL DEFAULT 'active',
-  paid_amount_usdc NUMERIC DEFAULT 0,
-  paid_at TIMESTAMPTZ,
-  paid_by_pubkey TEXT,
-  paid_tx_signature TEXT,
-  expires_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 `;
 
 export async function setupDatabase() {

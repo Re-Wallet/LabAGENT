@@ -14,15 +14,6 @@ import { getDealByRequest } from '../repositories/deals.repository';
 import { emitEvent } from '../events/service';
 import { inTransaction } from '../events/service';
 import { calcularReputacionAgente } from '../services/reputacion.service';
-import { PrototypeClient } from '../services/prototype-client';
-
-// Cliente del Prototype (configurado por variables de entorno)
-const prototypeClient = process.env.PROTOTYPE_BASE_URL
-  ? new PrototypeClient({
-      baseUrl: process.env.PROTOTYPE_BASE_URL,
-      apiKey: process.env.PROTOTYPE_API_KEY,
-    })
-  : undefined;
 
 // ---- Tipos internos ----
 interface BodyCreateRequest {
@@ -252,7 +243,7 @@ export async function aceptarOferta(req: Request, res: Response): Promise<void> 
   }
 
   try {
-    const result = await cerrarDeal(offerId, actor_id, prototypeClient);
+    const result = await cerrarDeal(offerId, actor_id);
     res.json({
       ok: true,
       mensaje: 'Deal creado en PENDING_ESCROW. Aprobado por el humano.',
@@ -363,52 +354,3 @@ export async function obtenerReputacion(req: Request, res: Response): Promise<vo
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'Error interno' });
   }
 }
-
-/**
- * POST /requests/:id/sincronizar-estado
- * Sincroniza el estado del Deal con el payment link del Prototype.
- * Requiere que PROTOTYPE_BASE_URL esté configurado.
- */
-export async function sincronizarEstadoDeal(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
-
-  if (!prototypeClient) {
-    res.status(503).json({
-      ok: false,
-      error: 'Prototype no configurado. Definí PROTOTYPE_BASE_URL.',
-    });
-    return;
-  }
-
-  try {
-    const resultado = await sincronizarEstadoDealService(id, prototypeClient);
-    res.json({
-      ok: true,
-      cambio: resultado.cambio,
-      dealEstado: resultado.dealEstado,
-      paymentLinkEstado: resultado.plEstado,
-    });
-  } catch (err) {
-    res.status(500).json({
-      ok: false,
-      error: err instanceof Error ? err.message : 'Error interno',
-    });
-  }
-}
-
-/**
- * Wrapper para llamar a sincronizarEstadoDeal del service (evita colisión de nombre
- * con el export de este mismo módulo).
- */
-async function sincronizarEstadoDealService(
-  dealId: string,
-  client: PrototypeClient
-): Promise<{
-  dealEstado: string;
-  plEstado: string;
-  cambio: boolean;
-}> {
-  const { sincronizarEstadoDeal: syncFn } = await import('../services/deal-sync.service');
-  return syncFn(dealId, client);
-}
-

@@ -3,11 +3,15 @@ import { acceptOffer } from '../repositories/offers.repository';
 import { createDeal } from '../repositories/deals.repository';
 import { updateRequestEstado } from '../repositories/requests.repository';
 import { getDealByRequest } from '../repositories/deals.repository';
+import { createDealPaymentLink } from '../repositories/deal-payment-links.repository';
+import { getWalletMapping } from '../repositories/wallet-mapping.repository';
+import { PrototypeClient } from '../services/prototype-client';
 
 export interface CierreDealResult {
   offer: any;
   deal: any;
   request: any;
+  paymentLink?: any;
 }
 
 /**
@@ -20,11 +24,16 @@ export interface CierreDealResult {
  *  d) Otras Offers PENDING → REJECTED
  *  e) Emitir eventos: OfferAccepted, DealCreated, RequestClosed, OfferRejected x n
  *
+ * Si hay Prototype configurado y el vendedor tiene wallet de Solana:
+ *  f) Crear payment link en el Prototype para el monto del deal
+ *  g) Guardar deal_payment_link vinculado
+ *
  * Si falla cualquier paso → rollback completo.
  */
 export async function cerrarDeal(
   offerId: string,
-  actorId: string
+  actorId: string,
+  prototypeClient?: PrototypeClient
 ): Promise<CierreDealResult> {
   return inTransaction(async (client) => {
     // a) Aceptar oferta (rechaza las demás PENDING automáticamente)
@@ -47,8 +56,6 @@ export async function cerrarDeal(
       throw new Error(`Request no encontrado: ${offer.request_id}`);
     }
 
-    // d) (ya hecho dentro de acceptOffer: las demás PENDING → REJECTED)
-
     // e) Emitir RequestClosed
     await emitEvent(
       {
@@ -67,7 +74,39 @@ export async function cerrarDeal(
       client
     );
 
-    return { offer, deal, request };
+    // f) Crear payment link en el Prototype si está configurado
+    let paymentLink: any = undefined;
+    if (prototypeClient) {
+      // Buscar wallet del vendedor (oferente_id)
+      const vendedorMapping = await getWalletMapping(offer.oferente_id);
+      if (vendedorMapping) {
+        const concepto = `Deal ${deal.id}: ${request.producto} - ${offer.cantidad} ${offer.unidad}`;
+        const link = await prototypeClient.createPaymentLink({
+          wallet: vendedorMapping.solana_public_key,
+          amountUsdc: Number(offer.precio),
+          concept: concepto,
+        });
+
+        // g) Guardar deal_payment_link vinculado
+        await createDealPaymentLink(
+          deal.id,
+          link.slug,
+          link.referencePubkey,
+          link.amountUsdc ?? null,
+          link.status
+        );
+
+        paymentLink = {
+          slug: link.slug,
+          referencePubkey: link.referencePubkey,
+          amountUsdc: link.amountUsdc,
+          status: link.status,
+          url: `${prototypeClient.baseUrl}/pay?slug=${link.slug}`,
+        };
+      }
+    }
+
+    return { offer, deal, request, paymentLink };
   });
 }
 

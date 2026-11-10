@@ -6,7 +6,7 @@ Mercado interno de solicitudes (Request/Offer/Message/Deal) para la wallet ReWal
 ## ✅ Estado
 
 Vertical slice mínimo implementado y **validado con llamadas HTTP reales**.
-Servidor Express en vivo probado con Postgres. 16/16 tests E2E pasando.
+Servidor Express en vivo probado con Postgres. **18/18 tests E2E pasando** (incluye mapeo de wallets y payment links de deals).
 
 ## Stack
 
@@ -41,6 +41,10 @@ GASTO_VENTANA_TIEMPO_DIAS=30
 RANGO_PRECIO_MIN=1
 RANGO_PRECIO_MAX=100000
 PLAZO_MAX_ENTREGA_DIAS=7
+
+# Integración con Prototype de ReWallet (Solana devnet)
+PROTOTYPE_BASE_URL=http://localhost:3001   # o URL del Prototype desplegado
+PROTOTYPE_API_KEY=tu_api_key_opcional
 ```
 
 > Nota: los archivos `.env*` fueron bloqueados por la política de seguridad del entorno; crear el `.env` manualmente o exportar las variables.
@@ -49,7 +53,9 @@ PLAZO_MAX_ENTREGA_DIAS=7
 
 El DDL oficial (tablas `requests`, `offers`, `messages`, `deals`, `events`, `agent_mandates`, trigger de inmutabilidad de `messages`) vive en **otro proyecto/rama** por instrucción del usuario.
 
-Para validación local, `tests/setup.ts` contiene un DDL equivalente.
+Para validación local, `tests/setup.ts` contiene un DDL equivalente que incluye las tablas adicionales de integración:
+- `wallet_mappings`: mapeo usuario LabAGENT ↔ clave pública Solana
+- `deal_payment_links`: asociación Deal ↔ payment link del Prototype
 
 ## Ejecutar en desarrollo
 
@@ -375,6 +381,103 @@ Estado del deal: **PENDING_ESCROW** (puente al escrow, fase siguiente)
 
 ---
 
+## Integración con Prototype de ReWallet (Solana)
+
+LabAGENT se integra con el Prototype de ReWallet (Solana devnet) para convertir los
+Deals en `PENDING_ESCROW` en payment links reales de USDC sobre Solana.
+
+### Arquitectura de integración
+
+```
+LabAGENT (off-chain mercado)        Prototype (Solana devnet)
+─────────────────────               ─────────────────────
+Deal (PENDING_ESCROW) ────────────▶ Payment link (active)
+     ▲                                       │
+     │                                       │ Usuario paga USDC
+     │                                       ▼
+     │                              Payment link (paid)
+     │                                       ▲
+     └─────── sincronizar-estado ───────────┘
+```
+
+### Mapeo de usuarios
+
+Cada usuario de LabAGENT (`solicitante_id`, `agente_id`, `oferente_id`) se asocia
+a una clave pública de Solana a través de la tabla `wallet_mappings`. Esto permite
+saber a qué wallet enviar USDC cuando se acepta un Deal.
+
+```bash
+# Ejemplo: guardar mapeo (se hace en el servicio de wallet-mapping)
+POST /api/wallet-mappings
+  { "labagent_user_id": "usuario_b", "solana_public_key": "G2ghF7...", "network": "devnet" }
+```
+
+### Flujo de pago de un Deal
+
+1. **Usuario A acepta oferta** → Deal creado en `PENDING_ESCROW` + Request `CLOSED`
+2. **Crear payment link** en el Prototype (si `PROTOTYPE_BASE_URL` está configurado y el vendedor tiene wallet de Solana mapeada)
+3. **Comprador paga** vía Solana (wallet embebida de Dynamic.xyz en el Prototype)
+4. **Sincronizar estado** → `POST /requests/:id/sincronizar-estado` consulta el payment link y actualiza el Deal:
+   - `active` → `PENDING_ESCROW`
+   - `paid` → `IN_ESCROW`
+   - `partial` → `IN_ESCROW`
+   - `expired` / `cancelled` → `DISPUTED`
+
+### Endpoints de integración
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/requests/:id/sincronizar-estado` | Sincroniza estado del Deal con payment link del Prototype |
+
+### Variables de entorno para integración
+
+```
+PROTOTYPE_BASE_URL=http://localhost:3001   # URL del API del Prototype
+PROTOTYPE_API_KEY=tu_api_key_opcional
+```
+
+### Evidencia de credibilidad: integración en vivo
+
+El servidor Express se ejecutó en `http://localhost:3000` con Postgres en el puerto 5434. Se hizo el flujo completo:
+
+**1) Crear request (arroz):**
+```bash
+curl -s -X POST http://localhost:3000/requests \
+  -H "Content-Type: application/json" \
+  -d '{"texto":"necesito 5 kg de arroz, hasta $900/kg, para mañana","confirmado":true,"solicitante_id":"usuario_arroz","agente_id":"agente_negocio_1","producto":"arroz","cantidad":5,"unidad":"kg","precio_max":900,"perfil_solicitante":"comercio"}'
+```
+→ `estado: "OPEN"`, `request.id: "d642948e-763e-4df7-b16d-804f2cb241da"`
+
+**2) Usuario B envía Offer (850/kg, 5 kg):**
+```bash
+curl -s -X POST "http://localhost:3000/requests/d642948e-763e-4df7-b16d-804f2cb241da/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"autor_id":"usuario_b","autor_tipo":"AGENT","tipo":"OFFER","contenido":"Te ofrezco 5 kg de arroz a $850/kg, entrega en puerta.","precio":850,"cantidad":5,"condiciones_entrega":"Entrega en puerta, pago contra entrega.","oferente_id":"usuario_b","agente_oferente_id":"agente_negocio_2"}'
+```
+→ `offer_id: "68ff346b-cf34-4c72-8cbc-24f40a43e5be"`, request pasa a `NEGOTIATING`
+
+**3) Usuario A acepta oferta:**
+```bash
+curl -s -X POST "http://localhost:3000/requests/d642948e-763e-4df7-b16d-804f2cb241da/offers/68ff346b-cf34-4c72-8cbc-24f40a43e5be/accept" \
+  -H "Content-Type: application/json" \
+  -d '{"actor_id":"usuario_arroz"}'
+```
+→ Deal `id: "5f3e003c-6815-458f-a08e-8880d39b1e47"`, `estado: "PENDING_ESCROW"`, Request `CLOSED`
+
+**4) Sincronizar estado (sin Prototype configurado):**
+```bash
+curl -s -X POST "http://localhost:3000/requests/d642948e-763e-4df7-b16d-804f2cb241da/sincronizar-estado"
+```
+→ `{"ok": false, "error": "Prototype no configurado. Definí PROTOTYPE_BASE_URL."}`
+
+**5) Estado final del request + sala:**
+- Request: `estado: "CLOSED"`
+- Offer: `estado: "ACCEPTED"` (precio 850, cantidad 5)
+- Deal: `estado: "PENDING_ESCROW"`, `precio_final: 850`
+- Sala: 1 mensaje (OFFER), 1 offer, 1 deal
+
+---
+
 ## Endpoints
 
 | Método | Ruta | Descripción |
@@ -386,6 +489,7 @@ Estado del deal: **PENDING_ESCROW** (puente al escrow, fase siguiente)
 | `POST` | `/requests/:id/offers/:offerId/accept` | Aceptar oferta → Deal en `PENDING_ESCROW` → Request `CLOSED` |
 | `POST` | `/requests/:id/cancel` | Cancelar solicitud |
 | `GET` | `/requests/:id/resumen-agente` | Resumen del agente del solicitante (filtro por `AgentMandate`) |
+| `POST` | `/requests/:id/sincronizar-estado` | Sincronizar estado del Deal con payment link del Prototype |
 | `GET` | `/reputacion/:agenteId` | Reputación básica off-chain por `agente_id` |
 | `GET` | `/health` | Health check |
 

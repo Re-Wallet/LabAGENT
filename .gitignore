@@ -5,6 +5,13 @@ dist/
 npm-debug.log*
 .yarn-integrity
 coverage/
+
+# Contratos Soroban
+contracts/*/target/
+contracts/*/Cargo.lock
+
+# Scripts temporales
+scripts/create-usdc-*.js
 dist/
 tests/*.js
 tests/*.d.ts

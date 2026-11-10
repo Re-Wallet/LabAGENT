@@ -375,6 +375,72 @@ Estado del deal: **PENDING_ESCROW** (puente al escrow, fase siguiente)
 
 ---
 
+## Capa 2 — Escrow on-chain (Soroban / Stellar Testnet)
+
+El contrato de escrow está implementado en Rust/Soroban y compilado. Está diseñado para retener fondos USDC en un Deal hasta que se cumplan las condiciones de liberación.
+
+### Contrato de escrow (`contracts/escrow-deal/`)
+
+**Estado:** Compilado (18.9 KB WASM, 13 funciones), listo para desplegar en testnet.
+
+**Estados del Deal:**
+```
+PENDING_ESCROW → IN_ESCROW → DELIVERED → SETTLED
+                        │              │
+                        └─────────────▶ DISPUTED
+```
+
+**Funciones del contrato:**
+| Función | Descripción | Quién la llama |
+|---------|-------------|----------------|
+| `depositar` | Bloquea USDC del comprador, crea Deal en PENDING_ESCROW | Comprador |
+| `reclamar_entrega` | Vendedor indica que entregó, estado → IN_ESCROW | Vendedor |
+| `confirmar_entrega` | Comprador confirma recepción, estado → DELIVERED | Comprador |
+| `liberar` | Transfiere USDC al vendedor, estado → SETTLED | Comprador |
+| `reembolsar` | Devuelve USDC al comprador, estado → DISPUTED | Comprador |
+| `disputar` | Abre disputa (Capa 3) | Cualquiera |
+| `pause` / `unpause` | Stop de emergencia | Admin |
+| `set_admin` | Rotación de clave admin | Admin |
+
+**Eventos on-chain (nombres estándar I7):**
+`Deposito`, `EntregaReclamada`, `EntregaConfirmada`, `Liberado`, `Reembolsado`, `Disputado`, `Pause`, `AdminRotado`.
+
+### Despliegue en testnet
+
+```bash
+cd contracts/escrow-deal
+
+# 1. Compilar
+stellar contract build
+
+# 2. Crear activo USDC en testnet (SAC)
+stellar contract asset deploy \
+  --asset "USDC:TU_PUBLIC_KEY" \
+  --source-account TU_CUENTA \
+  --network testnet \
+  --alias usdc_testnet
+
+# 3. Desplegar contrato de escrow
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/escrow_deal.wasm \
+  --alias escrow_deal_v1 \
+  --network testnet \
+  --source TU_CUENTA \
+  -- \
+  --admin TU_PUBLIC_KEY \
+  --usdc-sac TU_SAC_DE_USDC \
+  --settle-grace-seconds 604800
+```
+
+### Integración con LabAGENT (pendiente)
+
+El backend de LabAGENT (Node/TS) se conectará al contrato Soroban vía `stellar-sdk` para:
+- Crear el Deal en PENDING_ESCROW al aceptar una oferta
+- Depositar USDC en el contrato al aceptar el Deal
+- Sincronizar el estado del Deal desde eventos on-chain
+
+---
+
 ## Endpoints
 
 | Método | Ruta | Descripción |
@@ -405,16 +471,41 @@ Si faltan campos obligatorios (producto, cantidad, unidad), devuelve error pidie
 - **I2**: Sala de negociación = set de `Message` con el mismo `request_id`.
 - **I3**: Todo cambio de estado emite un evento (tabla `events`).
 - **I4**: `Message` es inmutable (trigger de BD + solo endpoint POST).
-- **I5**: Deal es el puente al escrow (se detiene en `PENDING_ESCROW`).
+- **I5**: Deal es el puente al escrow (se detiene en `PENDING_ESCROW` en fase 1; en Capa 2 pasa a `IN_ESCROW` → `DELIVERED` → `SETTLED`).
 - **I6**: `AgentMandate` modelado desde ahora, aplicado off-chain.
 - **I7**: Nombres de evento estándar (`RequestCreated`, `OfferSubmitted`, `OfferAccepted`, `DealCreated`, `MessageSent`, `RequestCancelled`, `OfferRejected`, `RequestClosed`).
 - **I8**: `categoria`, `tags`, `ubicacion` existen desde el inicio.
 - **I9**: `agente_id` distinto del humano.
 - **I10**: Negociación híbrida (agente sugiere, humano aprueba el deal).
 
-## Siguientes fases (no tocar en esta fase)
+## Siguientes fases
 
-- Capa 2: Escrow on-chain (Mycelium o Cogladius como candidatos).
-- Capa 3: AgentMandate on-chain (REAPP o Eunomia como candidatos).
-- Capa 4: Trazabilidad on-chain (anclaje on-chain de eventos, reputación por agente_id).
-- Capa 5: Canales externos (ChatGPT/ACP), Nirium para tesorería.
+- **Capa 2 (en progreso):** Contrato de escrow Soroban escrito y compilado. Pendiente: desplegar en testnet, integrar con backend Node/TS, pruebas E2E.
+- **Capa 3:** AgentMandate on-chain (REAPP o Eunomia como candidatos).
+- **Capa 4:** Trazabilidad on-chain (anclaje on-chain de eventos, reputación por agente_id).
+- **Capa 5:** Canales externos (ChatGPT/ACP), Nirium para tesorería.
+
+## Archivos del proyecto
+
+```
+LabAGENT/
+├── src/                    # Backend Node/TS (mercado off-chain)
+│   ├── parser/             # Parser con reglas (no LLM)
+│   ├── repositories/       # Repositorios de BD
+│   ├── services/           # Servicios de negocio
+│   ├── controllers/        # Controladores Express
+│   └── routes/             # Rutas de la API
+├── tests/                  # Tests E2E (18/18 pasando)
+├── contracts/              # Contratos Soroban (Capa 2)
+│   └── escrow-deal/
+│       ├── Cargo.toml
+│       └── src/lib.rs      # Contrato de escrow (compilado)
+├── RESEARCH_MERCADO_INTERNO.md   # Research fase 1
+├── RESEARCH_CAPA2_ESCROW_SOROBAN.md  # Research Capa 2
+├── RESEARCH_CAPA2_COGLADIUS_ESCROW.md  # Research Cogladius (evaluado y descartado)
+├── DISENO_CAPA2_CONTRATOS_SOROBAN.md  # Diseño de contratos Capa 2
+├── README.md               # Este archivo
+├── docker-compose.yml      # Postgres para desarrollo
+└── jest.config.js          # Configuración de Jest
+```
+

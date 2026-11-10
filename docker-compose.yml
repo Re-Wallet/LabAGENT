@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: labagent-postgres
+    environment:
+      POSTGRES_USER: labagent
+      POSTGRES_PASSWORD: labagent
+      POSTGRES_DB: labagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - labagent_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labagent -d labagent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  labagent_postgres_data:

@@ -8,6 +8,7 @@ import { pool } from './config/db';
 import { env } from './config/env';
 
 import requestRoutes from './routes/requests';
+import { obtenerReputacion } from './controllers/requests.controller';
 
 dotenv.config();
 
@@ -19,6 +20,9 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 app.use('/requests', requestRoutes);
+
+// GET /reputacion/:agenteId — reputación básica off-chain por agente
+app.get('/reputacion/:agenteId', obtenerReputacion);
 
 app.get('/health', async (_req, res) => {
   try {

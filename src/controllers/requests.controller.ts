@@ -13,6 +13,7 @@ import { evaluarOfertaContraMandato, generarResumenUsuario } from '../services/a
 import { getDealByRequest } from '../repositories/deals.repository';
 import { emitEvent } from '../events/service';
 import { inTransaction } from '../events/service';
+import { calcularReputacionAgente } from '../services/reputacion.service';
 
 // ---- Tipos internos ----
 interface BodyCreateRequest {
@@ -329,6 +330,26 @@ export async function resumenAgente(req: Request, res: Response): Promise<void> 
       resumen,
       ofertas_detalle: ofertas,
     });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'Error interno' });
+  }
+}
+
+/**
+ * GET /reputacion/:agenteId
+ * Reputación básica off-chain de un agente calculada desde eventos.
+ */
+export async function obtenerReputacion(req: Request, res: Response): Promise<void> {
+  const { agenteId } = req.params;
+
+  if (!agenteId) {
+    res.status(400).json({ ok: false, error: 'agenteId es obligatorio' });
+    return;
+  }
+
+  try {
+    const reputacion = await calcularReputacionAgente(agenteId);
+    res.json({ ok: true, reputacion });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'Error interno' });
   }

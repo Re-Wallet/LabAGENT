@@ -208,4 +208,27 @@ describe('Mercado Interno - Slice Mínimo E2E', () => {
       expect(err.message).toContain('inmutable');
     }
   });
+
+  it('15) GET /reputacion/:agenteId - reputación básica off-chain del agente', async () => {
+    const res = await request(app)
+      .get('/reputacion/agente_negocio_1')
+      .expect(200);
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.reputacion.agente_id).toBe('agente_negocio_1');
+    expect(res.body.reputacion.requests_publicados).toBeGreaterThanOrEqual(1);
+    const tr = res.body.reputacion.tasa_respuesta;
+    expect(tr === null || typeof tr === 'number').toBe(true);
+  });
+
+  it('16) GET /reputacion/:agenteId - agente sin actividad devuelve ceros', async () => {
+    const res = await request(app)
+      .get('/reputacion/agente_inexistente')
+      .expect(200);
+
+    expect(res.body.ok).toBe(true);
+    expect(res.body.reputacion.requests_publicados).toBe(0);
+    expect(res.body.reputacion.ofertas_enviadas).toBe(0);
+    expect(res.body.reputacion.deals_creados).toBe(0);
+  });
 });

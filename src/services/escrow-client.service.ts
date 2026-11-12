@@ -23,18 +23,24 @@ import {
  * Contrato desplegado en testnet:
  *   CAR4Z3CHDEYMMR6J6XMOWHRTWA45YDFAGGQXR7O76HAKM3ERJG33M47D
  *
- * USDC SAC:
- *   CBPYDMY3MU6CDAY2QVPUV735Q7IT5BEG33IDJEDZUBP4A5IXSOAAAA62
+ * USDC de Circle (testnet):
+ *   SAC (Stellar Asset Contract): CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
+ *   Issuer (activo clásico):        GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+ *   Decimales: 7
  *
  * Firma de transacciones vía Open Wallet Standard (OWS):
  *   - Las claves privadas se importan en el vault local de OWS (cifrado en reposo).
  *   - OWS aplica políticas (AgentMandate) antes de firmar.
  *   - OWS firma el XDR de la transacción y lo envía a Horizon/Soroban RPC.
+ *
+ * Nota: El contrato desplegado actualmente tiene un usdc_sac distinto en su
+ * storage. Para usar USDC de Circle, el contrato debe apuntar al SAC de Circle
+ * (redeployar o invocar set_admin/set_usdc_sac si el contrato lo soporta).
  */
 
 export interface EscrowContractConfig {
   contractId: string;
-  usdcSacId: string;
+  usdcSacId?: string;         // default: USDC de Circle testnet SAC
   rpcUrl: string;
   networkPassphrase: string;
   adminSecretKey: string;
@@ -43,6 +49,15 @@ export interface EscrowContractConfig {
   owsApiToken?: string;       // Token de API key de OWS (modo agent, aplica políticas)
   owsPolicyScriptPath?: string; // Path al script ejecutable de política (default: scripts/ows-agent-mandate-policy.sh)
 }
+
+/**
+ * USDC de Circle en Stellar testnet (valores canónicos de Circle).
+ */
+export const USDC_CIRCLE_TESTNET = {
+  sac: 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA',
+  issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  decimals: 7,
+} as const;
 
 export interface DealData {
   dealId: number | bigint;
@@ -80,7 +95,9 @@ export class EscrowContractClient {
 
   constructor(config: EscrowContractConfig) {
     this.contractId = config.contractId;
-    this.usdcSacId = config.usdcSacId;
+    // Por defecto usa el SAC de USDC de Circle en testnet.
+    // Si el contrato desplegado usa otro SAC, pasarlo explícitamente en la config.
+    this.usdcSacId = config.usdcSacId ?? USDC_CIRCLE_TESTNET.sac;
     this.server = new rpc.Server(config.rpcUrl, { allowHttp: true });
     this.networkPassphrase = config.networkPassphrase;
     this.owsVaultPath = config.owsVaultPath ?? './.ows-vault';

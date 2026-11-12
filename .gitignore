@@ -10,6 +10,12 @@ coverage/
 contracts/*/target/
 contracts/*/Cargo.lock
 
+# OWS vendored (repo anidado - no commitear)
+vendor/
+
+# OWS vault local
+.ows-vault/
+
 # Scripts temporales
 scripts/create-usdc-*.js
 dist/

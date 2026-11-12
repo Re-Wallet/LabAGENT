@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@open-wallet-standard/core": "file:vendor/ows-core/bindings/node",
     "@stellar/stellar-sdk": "^17.4.0",
     "cogladius": "^0.2.5",
     "cors": "^2.8.6",

@@ -39,8 +39,8 @@ import {
  */
 
 export interface EscrowContractConfig {
-  contractId: string;
-  usdcSacId?: string;         // default: USDC de Circle testnet SAC
+  contractId?: string;        // default: contrato escrow con USDC de Circle (testnet)
+  usdcSacId?: string;         // default: SAC de USDC de Circle testnet
   rpcUrl: string;
   networkPassphrase: string;
   adminSecretKey: string;
@@ -57,6 +57,16 @@ export const USDC_CIRCLE_TESTNET = {
   sac: 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA',
   issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
   decimals: 7,
+} as const;
+
+/**
+ * Contrato de escrow desplegado con USDC de Circle en Stellar testnet.
+ * Desplegado con stellar contract deploy el 2026-11-12.
+ */
+export const ESCROW_CIRCLE_TESTNET = {
+  contractId: 'CB7NEONISYH3ODZHTGPZQHV34FQSFAVQZN7NYCWGP3ODZP66NX4OHSLA',
+  admin: 'GD2Z6SOFTJD6UBWTJJF7I2ZXYS2NONB6FVH6HBUJYVUFV6TUFOYXBY5Q',
+  usdcSac: 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA',
 } as const;
 
 export interface DealData {
@@ -94,10 +104,10 @@ export class EscrowContractClient {
   private owsPolicyScriptPath: string;
 
   constructor(config: EscrowContractConfig) {
-    this.contractId = config.contractId;
-    // Por defecto usa el SAC de USDC de Circle en testnet.
-    // Si el contrato desplegado usa otro SAC, pasarlo explícitamente en la config.
-    this.usdcSacId = config.usdcSacId ?? USDC_CIRCLE_TESTNET.sac;
+    // Por defecto usa el nuevo contrato desplegado con USDC de Circle (testnet).
+    // Para usar el contrato anterior o otro, pasar contractId y usdcSacId explícitamente.
+    this.contractId = config.contractId ?? ESCROW_CIRCLE_TESTNET.contractId;
+    this.usdcSacId = config.usdcSacId ?? ESCROW_CIRCLE_TESTNET.usdcSac;
     this.server = new rpc.Server(config.rpcUrl, { allowHttp: true });
     this.networkPassphrase = config.networkPassphrase;
     this.owsVaultPath = config.owsVaultPath ?? './.ows-vault';

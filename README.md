@@ -50,6 +50,103 @@ ReWallet Lab es un laboratorio de **agentes autónomos para comercio electrónic
 
 ---
 
+## 📖 Historia de Usuario: Un Mercado Automatizado por IA
+
+> *"Necesito comprar 500 kg de harina para mi panadería, pero no tengo tiempo de llamar a proveedores, comparar precios ni negociar. Quiero que alguien lo haga por mí, de forma segura y transparente."*
+
+### María, dueña de una panadería local
+
+María tiene una pequeña panadería. Cada semana necesita insumos: harina, azúcar, levadura, empaques. Antes, pasaba horas por teléfono pidiendo cotizaciones a diferentes proveedores, comparando precios y condiciones de entrega. A veces se olvidaba de comparar un proveedor y terminaba pagando de más.
+
+Un día, María descubre **ReWallet Lab**.
+
+### Paso 1: María expresa su necesidad
+
+María no necesita saber escribir contratos inteligentes ni saber de blockchain. Simplemente escribe en el panel de ReWallet:
+
+> *"Necesito 500 kg de harina de trigo, hasta $2.500/kg, entrega el viernes en mi panadería del centro, pago contra entrega."*
+
+### Paso 2: El agente autónomo parsea la intención
+
+El **Parser de Intención** de ReWallet convierte el lenguaje natural de María en una solicitud estructurada:
+
+```
+{
+  producto: "harina de trigo",
+  cantidad: 500,
+  unidad: "kg",
+  precio_max: 2500,
+  plazo_entrega: "viernes",
+  ubicacion: "centro",
+  perfil: "pyme"
+}
+```
+
+La solicitud se publica en el **Mercado Interno** como `Request` con estado `OPEN`.
+
+### Paso 3: Los vendedores envían ofertas
+
+Tres proveedores reciben la solicitud a través de sus propios agentes autónomos:
+
+| Proveedor | Precio/kg | Total | Entrega | Condiciones |
+|-----------|-----------|-------|---------|-------------|
+| Proveedor A | $2.400 | $1.200.000 | Viernes | Contra entrega |
+| Proveedor B | $2.300 | $1.150.000 | Sábado | Transferencia previa |
+| Proveedor C | $2.450 | $1.225.000 | Viernes | 30 días de crédito |
+
+### Paso 4: El agente filtra y recomienda
+
+El **AgentMandate** de María evalúa cada oferta contra sus reglas:
+
+- ✅ Gasto máximo por operación: $1.300.000 → Todas dentro
+- ✅ Rango de precio: $2.000 - $2.600 → Todas dentro
+- ✅ Whitelist de contrapartes: Proveedor A y C están autorizados, B no
+
+El agente le muestra a María solo las dos mejores opciones dentro de su mandato:
+
+> *"Te recomiendo al Proveedor A ($2.400/kg, entrega viernes) o al Proveedor C ($2.450/kg, 30 días de crédito). Ambas dentro de tu presupuesto y whitelist."*
+
+### Paso 5: María aprueba el deal
+
+María elige al **Proveedor A**. Clickea "Aceptar oferta". El sistema:
+
+1. Crea un **Deal** en estado `PENDING_ESCROW`
+2. Cierra el `Request` como `CLOSED`
+3. Rechaza las demás ofertas automáticamente
+
+### Paso 6: El escrow on-chain protege a ambos
+
+María deposita **$1.200.000 en USDC de Circle** al contrato de escrow. El dinero queda retenido, no se lo lleva nadie aún.
+
+El vendedor recibe la notificación de que los fondos están asegurados. Envía la harina el viernes.
+
+María recibe la harina, verifica que está bien, y **confirma la entrega**.
+
+Solo entonces, el contrato libera los **$1.200.000 al Proveedor A**.
+
+### Paso 7: Todo queda trazable
+
+Cada paso queda registrado:
+- **Off-chain:** En PostgreSQL (quién aceptó, cuándo, precios)
+- **On-chain:** En el contrato Soroban (depósito, liberación, eventos)
+
+Si algo sale mal, María puede abrir una disputa y el sistema reembolsa los fondos.
+
+### ¿Qué gana María?
+
+| Antes | Después con ReWallet Lab |
+|-------|-------------------------|
+| Horas por teléfono comparando precios | Minutos escribiendo su necesidad |
+| Riesgo de pagar sin recibir | Fondos en custodia hasta confirmar entrega |
+| Sin registro claro de acuerdos | Trazabilidad completa off-chain y on-chain |
+| Depender de la honestidad del vendedor | Contrato inteligente que solo libera si se confirma |
+
+### El contexto de mañana
+
+Imagina que mañana, cada vez que María cree una cuenta en su panadería, el sistema le pregunta: *"¿Tienes USDC, pesos locales o cripto para operar?"*. Ella elige USDC (stablecoin por el momento), se fondea, y el mercado de oferta y demanda se automatiza por IA: los agentes negocian por ella, ella solo aprueba el deal final, y el escrow on-chain garantiza que nadie se quede con el dinero sin entregar la mercadería.
+
+---
+
 ## 📜 Evolución del Proyecto
 
 ### Fase 1 - Mercado Interno (completada)

@@ -213,7 +213,7 @@ impl EscrowDealCircleContract {
     // 1. depositar: comprador bloquea USDC en el escrow
     // -----------------------------------------------------------------------
     /// Crea un Deal en estado PENDING_ESCROW y bloquea el monto de USDC.
-    /// Llamada por el comprador.
+    /// Llamada por el comprador, quien paga su propio USDC al escrow.
     pub fn depositar(
         env: Env,
         comprador: Address,
@@ -221,10 +221,10 @@ impl EscrowDealCircleContract {
         monto: i128,
         _deadline: u64,
     ) -> Result<u64, Error> {
-        // Solo el admin puede depositar en nombre del comprador
-        let config = Self::config(&env);
-        config.admin.require_auth();
+        // El comprador paga su propio USDC al escrow
+        comprador.require_auth();
 
+        let config = Self::config(&env);
         if config.paused {
             return Err(Error::Paused);
         }
